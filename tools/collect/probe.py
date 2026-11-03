@@ -1,73 +1,75 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Проба API порталу відкритих даних Верховної Ради: кілька запитів з паузами, вивід у журнал.
+"""Проба API порталу відкритих даних Верховної Ради.
 
-Правила API (data.rada.gov.ua/open/main/api/page3): User-Agent "OpenData" для не-JSON форматів,
-пауза 5–7 с між запитами, не запитувати токен і не перевіряти ліміти перед кожним запитом.
+Робить кілька запитів (з паузами 5–7 с, як просить Рада) і зберігає відповіді в теку probe/,
+щоб побачити формат даних. Потрібен лише Python 3.9+ без додаткових бібліотек.
+
+Запуск:  python3 probe.py
 """
 
 from __future__ import annotations
 
+import json
 import random
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 BASE = "https://data.rada.gov.ua"
 UA = "OpenData"
+OUT = Path(__file__).resolve().parent / "probe"
 
+# (назва файлу, шлях, скільки байтів максимум)
 PROBES = [
-    # (опис, шлях без кодування)
-    ("Список поновлених (nreg, TXT)", "/laws/main/r.txt"),
-    ("Список поновлених з реквізитами (JSON, стор. 1)", "/laws/main/r/page1.json"),
-    ("Картка Конституції (JSON)", "/laws/card/254к/96-вр.json"),
-    ("Текст Конституції (TXT)", "/laws/show/254к/96-вр.txt"),
-    ("Текст Конституції (HTML)", "/laws/show/254к/96-вр"),
-    ("Картка КК (JSON)", "/laws/card/2341-14.json"),
-    ("Метадані карток (OGD)", "/ogd/zak/laws/docs/meta.json"),
+    ("r.txt", "/laws/main/r.txt", 200_000),
+    ("r-page1.json", "/laws/main/r/page1.json", 300_000),
+    ("card-constitution.json", "/laws/card/254к/96-вр.json", 300_000),
+    ("show-constitution.txt", "/laws/show/254к/96-вр.txt", 3_000_000),
+    ("show-constitution.html", "/laws/show/254к/96-вр", 3_000_000),
+    ("card-civil-code.json", "/laws/card/435-15.json", 300_000),
+    ("show-civil-code.html", "/laws/show/435-15", 6_000_000),
+    ("show-small.txt", "/laws/show/n0438500-26.txt", 300_000),
+    ("ogd-stan.txt", "/ogd/zak/laws/data/csv/stan.txt", 50_000),
 ]
 
 
-def fetch(path: str) -> None:
+def fetch(name: str, path: str, limit: int) -> dict:
     url = BASE + urllib.parse.quote(path, safe="/.-_")
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
     t0 = time.monotonic()
+    info: dict = {"name": name, "url": url}
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            body = r.read(3_000_000)
-            status, headers, final = r.status, r.headers, r.geturl()
+        with urllib.request.urlopen(req, timeout=90) as r:
+            body = r.read(limit)
+            info.update(status=r.status, final_url=r.geturl(), headers=dict(r.headers))
     except urllib.error.HTTPError as e:
-        body, status, headers, final = e.read(20_000), e.code, e.headers, url
+        body = e.read(50_000)
+        info.update(status=e.code, final_url=url, headers=dict(e.headers))
     except Exception as e:  # мережа, DNS, TLS
-        print(f"  ПОМИЛКА: {type(e).__name__}: {e}")
-        return
-    dt = time.monotonic() - t0
-    print(f"  статус {status}, {len(body)} байтів, {dt:.1f} с, кінцева адреса: {final}")
-    for h in ("Content-Type", "Last-Modified", "Content-Length", "ETag", "Server"):
-        if headers.get(h):
-            print(f"  {h}: {headers.get(h)}")
-    ctype = (headers.get("Content-Type") or "").lower()
-    enc = "cp1251" if "1251" in ctype else "utf-8"
-    text = body.decode(enc, errors="replace")
-    head = text[:2500]
-    print("  --- початок ---")
-    for line in head.splitlines():
-        print("  | " + line[:300])
-    if "<a name=" in text or ' id="' in text:
-        import re
-
-        ids = re.findall(r'(?:name|id)="([^"]{1,40})"', text)
-        print(f"  --- якорі: {len(ids)}, приклади: {ids[:15]}")
+        info.update(error=f"{type(e).__name__}: {e}")
+        body = b""
+    info["seconds"] = round(time.monotonic() - t0, 2)
+    info["bytes"] = len(body)
+    (OUT / name).write_bytes(body)
+    return info
 
 
 def main() -> int:
-    for i, (title, path) in enumerate(PROBES):
+    OUT.mkdir(exist_ok=True)
+    results = []
+    for i, (name, path, limit) in enumerate(PROBES):
         if i:
             time.sleep(random.uniform(5, 7))
-        print(f"\n=== {title}: {path}")
+        info = fetch(name, path, limit)
+        results.append(info)
+        status = info.get("status", info.get("error"))
+        print(f"{name:28} {status}  {info['bytes']:>9} байтів  {info['seconds']} с")
         sys.stdout.flush()
-        fetch(path)
+    (OUT / "results.json").write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nГотово. Відповіді збережено в {OUT}")
     return 0
 
 
