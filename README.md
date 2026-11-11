@@ -9,7 +9,7 @@
 ## Як це працюватиме
 
 - **Основне вже в застосунку:** Конституція, кодекси й найпопулярніші документи — читати можна одразу.
-- **Повна база** — один файл у форматі [«Сувій»](https://github.com/Marybezu/suvii), оновлюється щомісяця.
+- **Повна база** — один файл у форматі [«Сувій»](https://github.com/marybezuhla/suvii), оновлюється щомісяця.
 - **Новини щодня:** картки нових і змінених документів; потрібний документ можна завантажити одразу або відкрити на сайті Ради.
 - **Тексти щотижня:** невелике підписане оновлення, лише коли ви натиснете «Оновити».
 - **Приватно:** без реклами, аналітики й облікових записів; закладки лишаються на телефоні.
@@ -26,7 +26,7 @@
 
 ## English
 
-**Chynnist** («Чинність», *being in force*) puts the whole "Legislation of Ukraine" database on an Android phone: offline, searchable, with signed updates. Daily cards of new and changed documents, weekly text updates on request, a monthly full base in the open [Suvii](https://github.com/Marybezu/suvii) format.
+**Chynnist** («Чинність», *being in force*) puts the whole "Legislation of Ukraine" database on an Android phone: offline, searchable, with signed updates. Daily cards of new and changed documents, weekly text updates on request, a monthly full base in the open [Suvii](https://github.com/marybezuhla/suvii) format.
 
 **Status:** in development, no builds yet.
 
