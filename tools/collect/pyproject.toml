@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chynnist-collect"
+version = "0.1.0"
+description = "Collector for Chynnist: documents of the Verkhovna Rada open data portal as a Suvii collection"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.12"
+dependencies = [
+  # Pinned to a commit: the format library is ours, but a build must not change on its own.
+  "suvii @ git+https://github.com/marybezuhla/suvii@18efa600eb6f4117f461ee2988a35591486e7803#subdirectory=python",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

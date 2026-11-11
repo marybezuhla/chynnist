@@ -19,3 +19,6 @@ __pycache__/
 tools/collect/work/
 *.suvii
 *.part
+
+# Відповіді проби API
+tools/collect/probe/
