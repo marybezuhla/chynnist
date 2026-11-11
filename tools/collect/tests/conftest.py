@@ -51,3 +51,60 @@ def conv(styles):
 @pytest.fixture(scope="session")
 def constitution_page() -> str:
     return (FIXTURES / "constitution_part.html").read_text(encoding="utf-8")
+
+
+# --- a fake portal: time that does not pass, a network that is a list of prepared answers
+
+class FakeClock:
+    """Starts at noon by Kyiv time, 11 November 2026. Sleeping moves the time and is recorded."""
+
+    def __init__(self) -> None:
+        self.moment = 1794391200.0
+        self.sleeps: list[float] = []
+
+    def now(self) -> float:
+        return self.moment
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.moment += seconds
+
+
+class FakeSender:
+    """Answers from `routes` (address -> answer, exception, or a list of them used one by one)."""
+
+    def __init__(self, clock: FakeClock, routes: dict | None = None, took: float = 0.0) -> None:
+        self.clock = clock
+        self.routes = routes or {}
+        self.took = took  # how long each answer takes
+        self.calls: list[tuple[float, str, dict[str, str]]] = []
+
+    def get(self, url, headers, max_bytes=0):
+        self.calls.append((self.clock.now(), url, dict(headers)))
+        self.clock.moment += self.took
+        answer = self.routes.get(url, answer_of(404))
+        if isinstance(answer, list):
+            answer = answer.pop(0) if len(answer) > 1 else answer[0]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+def answer_of(status: int, body: bytes = b"", **headers: str):
+    from chynnist_collect.transport import Response
+
+    return Response(status, {name.replace("_", "-"): value for name, value in headers.items()}, body, len(body))
+
+
+@pytest.fixture
+def clock() -> FakeClock:
+    return FakeClock()
+
+
+@pytest.fixture
+def state(tmp_path):
+    from chynnist_collect.state import State
+
+    s = State(tmp_path / "collect.db")
+    yield s
+    s.close()

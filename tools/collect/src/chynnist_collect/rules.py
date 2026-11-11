@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # Documents of the "Legislation of Ukraine" database live under this path prefix (SPEC.md, appendix A).
 PATH_PREFIX = "laws/"
@@ -41,13 +42,54 @@ MAX_HREF_CHARS = 1024
 MAX_SPAN = 1000  # colspan and rowspan
 TOC_TITLE_CHARS = 200
 
+# --- talking to the portal (its rules: data.rada.gov.ua/open/main/api/page3)
+
+# Without registration the portal serves open data only to this client name.
+USER_AGENT = "OpenData"
+PORTAL_ORIGIN = "https://data.rada.gov.ua"
+# The only hosts the collector may talk to; the portal redirects document pages to the second one.
+FETCH_HOSTS = frozenset({"data.rada.gov.ua", "zakon.rada.gov.ua"})
+# The portal asks for 5-7 seconds between requests. A random value does not look like an attack.
+PAUSE_SECONDS = (5.0, 7.0)
+# The portal blocks an address that ignores its rules. After the first refusal we stop for a day.
+BLOCK_STATUSES = frozenset({403, 429})
+BLOCK_SECONDS = 24 * 60 * 60
+# The portal counts its daily limits by Kyiv time. Old time zone data knows only the second name.
+DAY_ZONES = ("Europe/Kyiv", "Europe/Kiev")
+# Portal limits are 100 000 requests and 200 MB a day; we use at most 90 %.
+MAX_REQUESTS_PER_DAY = 90_000
+MAX_BYTES_PER_DAY = 180_000_000
+# One answer, as it comes over the network. Small enough that the answer that crosses our daily
+# limit still leaves the day under the portal's 200 MB.
+MAX_RESPONSE_BYTES = 16 * 1024 * 1024
+# An answer after unpacking (gzip); the same as the largest document a scroll can hold.
+MAX_DECODED_BYTES = 64 * 1024 * 1024
+MAX_REDIRECTS = 3
+SOCKET_TIMEOUT_SECONDS = 90
+RESPONSE_DEADLINE_SECONDS = 600
+# After that many failures in a row the run ends: the network or the portal is down.
+MAX_ERRORS_IN_ROW = 3
+# ...and nothing is asked for a while. A portal that defends itself may drop connections instead
+# of answering 403; knocking again every hour would only prolong that.
+ERROR_REST_SECONDS = 3 * 60 * 60
+# A document that failed that many times is left alone until someone looks at it.
+MAX_DOC_FAILURES = 5
+# A failed document is not asked for again sooner than this.
+RETRY_SECONDS = 60 * 60
+
 _ID = re.compile(r"^[A-Za-z0-9_.:-]+$")
+_HTTP_DATE = re.compile(r"^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$")
 _HTTPS = re.compile(r"^https://[^\s<>\"'\\]+$")
 
 
 def valid_id(value: str) -> bool:
     """Anchors are copied into `id` and into links, so they must be short and plain."""
     return 0 < len(value) <= MAX_ID_CHARS and _ID.match(value) is not None
+
+
+def valid_http_date(value: str) -> bool:
+    """A Last-Modified value is sent back to the portal in a header, so only the plain form is kept."""
+    return _HTTP_DATE.match(value) is not None
 
 
 def valid_https(url: str) -> bool:
@@ -73,3 +115,17 @@ def normalize_nreg(raw: str) -> str | None:
 
 def doc_path(nreg: str) -> str:
     return PATH_PREFIX + nreg
+
+
+def day_zone() -> ZoneInfo:
+    for name in DAY_ZONES:
+        try:
+            return ZoneInfo(name)
+        except ZoneInfoNotFoundError:
+            continue
+    raise ZoneInfoNotFoundError(DAY_ZONES[0])
+
+
+def show_url_path(nreg: str) -> str:
+    """Where the portal serves the text of a document."""
+    return "/laws/show/" + nreg
