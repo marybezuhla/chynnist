@@ -22,7 +22,7 @@ BASE = "https://data.rada.gov.ua"
 UA = "OpenData"
 OUT = Path(__file__).resolve().parent / "probe"
 
-# (назва файлу, шлях, скільки байтів максимум)
+# (назва файлу, шлях або повна адреса, скільки байтів максимум)
 PROBES = [
     ("r.txt", "/laws/main/r.txt", 200_000),
     ("r-page1.json", "/laws/main/r/page1.json", 300_000),
@@ -33,11 +33,13 @@ PROBES = [
     ("show-civil-code.html", "/laws/show/435-15", 6_000_000),
     ("show-small.txt", "/laws/show/n0438500-26.txt", 300_000),
     ("ogd-stan.txt", "/ogd/zak/laws/data/csv/stan.txt", 50_000),
+    # Стилі тексту: з них збирач дізнається, які класи означають жирний, курсив, вирівнювання.
+    ("u_text.css", "https://zakon.rada.gov.ua/laws/file/util/0/u_text.css", 500_000),
 ]
 
 
 def fetch(name: str, path: str, limit: int) -> dict:
-    url = BASE + urllib.parse.quote(path, safe="/.-_")
+    url = path if path.startswith("https://") else BASE + urllib.parse.quote(path, safe="/.-_")
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
     t0 = time.monotonic()
     info: dict = {"name": name, "url": url}
