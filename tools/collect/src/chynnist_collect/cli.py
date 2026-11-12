@@ -15,7 +15,7 @@ from pathlib import Path
 
 from suvii import SuviiError, keys
 
-from . import build, catalog, fetch, rules, signing
+from . import build, catalog, fetch, release, rules, signing
 from .catalog import CatalogError
 from .portal import Portal, RequestFailed, Stop, SystemClock, day_of
 from .state import State
@@ -183,6 +183,38 @@ def _build(state: State, args: argparse.Namespace, work: Path) -> int:
     return 0
 
 
+_RELEASE_PROBLEMS = {
+    "not_newer": "Цей стан не новіший за вже підготовлений до випуску.",
+    "wrong_collection": "Це не сувій колекції «Чинність».",
+    "outbox_full": "У теці outbox ще лежать файли попереднього випуску. Завантажте їх і очистьте теку.",
+}
+
+
+def _release(args: argparse.Namespace, work: Path) -> int:
+    try:
+        key = signing.load()
+    except signing.SigningKeyError as e:
+        print(_KEY_PROBLEMS[e.code])
+        return 1
+    clock = SystemClock()
+    month = datetime.fromtimestamp(clock.now(), rules.day_zone()).strftime("%Y-%m")
+    try:
+        done = release.prepare(work, args.scroll, key, now=clock.now(), month=month, new_base=args.new_base)
+    except release.ReleaseError as e:
+        print(_RELEASE_PROBLEMS[e.code])
+        return 1
+    except SuviiError:
+        print("Сувій пошкоджено або підписано іншим ключем (пробну збірку випускати не можна).")
+        return 1
+    except OSError:
+        print("Не вдалося записати файли випуску.")
+        return 1
+    kind = "нова основа місяця" if done.new_base else f"латок: {done.patches}"
+    print(f"Стан {done.seq} підготовлено до випуску ({kind}).")
+    print(f"Файли для завантаження — у теці {done.outbox}: кожна підтека — це випуск з такою самою назвою.")
+    return 0
+
+
 def _status(state: State) -> int:
     clock = SystemClock()
     counts = state.counts()
@@ -218,6 +250,9 @@ def main(argv: list[str] | None = None) -> int:
     make = commands.add_parser("build", help="зібрати сувій із завантажених сторінок")
     make.add_argument("out", type=Path, help="куди записати, наприклад chynnist-1.suvii")
     make.add_argument("--test-key", action="store_true", help="пробна збірка: тимчасовий ключ, номер стану не витрачається")
+    rel = commands.add_parser("release", help="підготувати зібраний сувій до випуску: основа або латки й index.json")
+    rel.add_argument("scroll", type=Path, help="сувій, зібраний командою build")
+    rel.add_argument("--new-base", action="store_true", help="почати нову основу, не чекаючи нового місяця")
     commands.add_parser("status", help="показати стан")
     args = parser.parse_args(argv)
 
@@ -234,6 +269,8 @@ def main(argv: list[str] | None = None) -> int:
             return _keygen()
         if args.command == "build":
             return _build(state, args, args.work)
+        if args.command == "release":
+            return _release(args, args.work)
         return _status(state)
     finally:
         state.close()

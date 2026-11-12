@@ -88,3 +88,14 @@ def test_trial_build_from_the_command_line(tmp_path, capsys, constitution_page):
 def test_build_without_pages(tmp_path, capsys):
     assert main(["--work", str(tmp_path), "build", str(tmp_path / "x.suvii"), "--test-key"]) == 1
     assert "збирати нічого" in capsys.readouterr().out
+
+
+def test_release_needs_the_real_key(tmp_path, capsys, monkeypatch):
+    from chynnist_collect import signing
+
+    def missing():
+        raise signing.SigningKeyError("missing")
+
+    monkeypatch.setattr(signing, "load", missing)
+    assert main(["--work", str(tmp_path), "release", str(tmp_path / "x.suvii")]) == 1
+    assert "keygen" in capsys.readouterr().out
