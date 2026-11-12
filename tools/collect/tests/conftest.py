@@ -108,3 +108,16 @@ def state(tmp_path):
     s = State(tmp_path / "collect.db")
     yield s
     s.close()
+
+
+# The one real line we have of the portal's list of documents (doc.txt), as given in its description.
+REAL_CARD_LINE = "558207\tn0438500-26\tПро облікову ціну банківських металів\t0\t95\t70:20261103:\t\t2\t20261103"
+
+
+def card_line(nreg: str, title: str, status: int = 5, types: str = "1", edition: str = "20260101") -> str:
+    """A made-up line in the documented format of doc.txt."""
+    return f"1\t{nreg}\t{title}\t{status}\t{types}\t1:{edition}:\t\t1\t{edition}"
+
+
+def catalog_bytes(*lines: str) -> bytes:
+    return "\r\n".join(lines).encode("cp1251") + b"\r\n"

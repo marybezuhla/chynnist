@@ -13,19 +13,25 @@
 - за день використовує не більше 90 % дозволеного (180 МБ і 90 000 запитів, доба за київським часом);
 - після першої відмови (403 або 429) не робить жодного запиту добу;
 - після трьох помилок мережі поспіль робить перерву на три години;
-- не працює у два вікна одночасно.
+- не працює у два вікна одночасно;
+- список усіх документів бере не частіше ніж раз на тиждень.
 
 Усі ці числа зібрано в одному файлі: `src/chynnist_collect/rules.py`.
 
 ## Команди
 
 ```
-chynnist-collect add 254к/96-вр 2341-14    # додати документи до черги
+chynnist-collect catalog                   # оновити список усіх документів порталу й чергу
+chynnist-collect add 254к/96-вр 2341-14    # або додати окремі документи до черги
 chynnist-collect run --minutes 55          # завантажувати, доки є час і ліміт
 chynnist-collect status                    # що зроблено і що чекає
 ```
 
-Стан зберігається в теці `work` (база `collect.db`, журнал `log.txt`). Запуск можна перервати будь-коли: наступний продовжить з того самого місця. У журналі лише адреси документів і розміри відповідей.
+Список усіх документів — один великий файл порталу (близько 52 МБ, чверть денного ліміту). Тому збирач бере його не частіше ніж раз на тиждень і лише тоді, коли весь файл вміщається в залишок дня. `catalog --file doc.txt` бере список з уже завантаженого файлу.
+
+Порядок черги: Конституція, кодекси, закони, постанови й укази, решта чинних документів, нечинні, і наостанок щоденні повідомлення про курси валют. Документ, у якого змінилася редакція, стає в чергу знову.
+
+Стан зберігається в теці `work` (база `collect.db`, журнал `log.txt`, список `doc.txt`). Запуск можна перервати будь-коли: наступний продовжить з того самого місця. У журналі лише адреси документів і розміри відповідей.
 
 ## Тести
 
@@ -47,10 +53,11 @@ The collector runs on the publisher's computer, not on GitHub servers. It follow
 - it uses at most 90 % of the daily allowance (180 MB and 90,000 requests, the day by Kyiv time);
 - after the first refusal (403 or 429) it makes no requests for a day;
 - after three network failures in a row it rests for three hours;
-- it never runs twice at the same time.
+- it never runs twice at the same time;
+- the list of all documents (one file of about 52 MB) is taken at most once a week, and only when the whole file fits into what is left of the day.
 
 All these numbers live in one file: `src/chynnist_collect/rules.py`.
 
-Commands: `chynnist-collect add <number>…`, `chynnist-collect run --minutes 55`, `chynnist-collect status`. The state is kept in the `work` folder; a run can be interrupted at any moment and the next one continues from the same place. The journal holds only document addresses and answer sizes.
+Commands: `chynnist-collect catalog` (refresh the list of all documents and the queue), `chynnist-collect add <number>…`, `chynnist-collect run --minutes 55`, `chynnist-collect status`. The queue goes: the Constitution, codes, laws, resolutions and decrees, other documents in force, documents not in force, and daily exchange rate notices last. A document whose edition has changed is queued again. The state is kept in the `work` folder; a run can be interrupted at any moment and the next one continues from the same place. The journal holds only document addresses and answer sizes.
 
 The tests never contact the portal: they use a saved page and a small server on the same computer.

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 import zlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -94,6 +95,13 @@ class State:
     def rest(self, moment: float) -> None:
         self._set("rest_until", moment)
 
+    def catalog_at(self) -> float | None:
+        """When the list of all documents was last loaded."""
+        return self._get("catalog_at")
+
+    def set_catalog_at(self, moment: float) -> None:
+        self._set("catalog_at", moment)
+
     def last_request(self) -> float | None:
         return self._get("last_request")
 
@@ -127,13 +135,23 @@ class State:
 
     def add(self, nreg: str, priority: int, wanted: str = "") -> None:
         """Puts a document into the queue, or changes its priority and the edition we want."""
-        self.conn.execute(
-            "INSERT INTO docs(nreg, priority, wanted) VALUES (?, ?, ?) "
-            "ON CONFLICT(nreg) DO UPDATE SET priority = excluded.priority, wanted = excluded.wanted, "
-            "failures = CASE WHEN wanted <> excluded.wanted THEN 0 ELSE failures END, "
-            "retry_at = CASE WHEN wanted <> excluded.wanted THEN 0 ELSE retry_at END",
-            (nreg, priority, wanted),
-        )
+        self.add_many([(nreg, priority, wanted)])
+
+    def add_many(self, rows: Iterable[tuple[str, int, str]]) -> None:
+        """The same for many documents at once: all of them or, after a failure, none."""
+        self.conn.execute("BEGIN")
+        try:
+            self.conn.executemany(
+                "INSERT INTO docs(nreg, priority, wanted) VALUES (?, ?, ?) "
+                "ON CONFLICT(nreg) DO UPDATE SET priority = excluded.priority, wanted = excluded.wanted, "
+                "failures = CASE WHEN wanted <> excluded.wanted THEN 0 ELSE failures END, "
+                "retry_at = CASE WHEN wanted <> excluded.wanted THEN 0 ELSE retry_at END",
+                rows,
+            )
+        except BaseException:
+            self.conn.execute("ROLLBACK")
+            raise
+        self.conn.execute("COMMIT")
 
     def next_task(self, moment: float) -> Task | None:
         row = self.conn.execute(
