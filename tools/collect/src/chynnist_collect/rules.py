@@ -77,6 +77,39 @@ MAX_DOC_FAILURES = 5
 # A failed document is not asked for again sooner than this.
 RETRY_SECONDS = 60 * 60
 
+# --- the list of all documents (cards) and the order of the queue
+
+# One file with a line for every document of the database, rewritten by the portal every hour.
+CATALOG_URL_PATH = "/ogd/zak/laws/data/csv/doc.txt"
+CATALOG_ENCODING = "cp1251"
+CATALOG_FIELDS = 9  # dokid, nreg, nazva, status, types, organs, minjust, npix, datred
+# The file is about 52 MB, a quarter of the day's allowance, so it is taken once a week at most.
+MAX_CATALOG_BYTES = 64 * 1024 * 1024
+CATALOG_SECONDS = 7 * 24 * 60 * 60
+# The real file has about 289 000 lines. Much fewer means an error page or a cut file,
+# and the queue must not be rebuilt from it.
+MIN_CATALOG_ROWS = 100_000
+
+# Codes of the portal's dictionaries typ.txt and stan.txt.
+TYPE_CONSTITUTION = 216
+TYPE_CODES = frozenset({21, 124})
+TYPE_LAW = 1
+TYPE_RESOLUTIONS_AND_DECREES = frozenset({2, 3})
+# 1 lost force, 3 suspended, 6 never came into force, 7 not applied in Ukraine.
+STATUS_NOT_IN_FORCE = frozenset({1, 3, 6, 7})
+# Notices issued every working day. There are thousands of them and few people read old ones,
+# so they are downloaded last.
+DAILY_TITLES = ("Про офіційний курс гривні", "Про облікову ціну банківських металів")
+
+# Order of the queue: a smaller number is downloaded earlier.
+PRIORITY_CONSTITUTION = 0
+PRIORITY_CODE = 1
+PRIORITY_LAW = 2
+PRIORITY_RESOLUTION_OR_DECREE = 3
+PRIORITY_OTHER_IN_FORCE = 4
+PRIORITY_NOT_IN_FORCE = 5
+PRIORITY_DAILY = 6
+
 _ID = re.compile(r"^[A-Za-z0-9_.:-]+$")
 _HTTP_DATE = re.compile(r"^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$")
 _HTTPS = re.compile(r"^https://[^\s<>\"'\\]+$")

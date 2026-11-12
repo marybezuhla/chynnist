@@ -91,7 +91,7 @@ class Portal:
         self.rng = rng or random.Random()
         self.errors_in_row = 0
 
-    def _wait_for_turn(self) -> None:
+    def _wait_for_turn(self, max_bytes: int) -> None:
         """Raises Stop if no request may be made now; otherwise sleeps until the pause has passed."""
         now = self.clock.now()
         blocked_until = self.state.blocked_until()
@@ -102,6 +102,10 @@ class Portal:
             raise Stop("errors")
         requests, used = self.state.usage(day_of(now))
         if requests >= rules.MAX_REQUESTS_PER_DAY or used >= rules.MAX_BYTES_PER_DAY:
+            raise Stop("budget")
+        # An ordinary answer is small enough to cross our limit safely. A large file is not:
+        # it is asked for only when the whole of it fits into what is left of the day.
+        if max_bytes > rules.MAX_RESPONSE_BYTES and used + max_bytes > rules.MAX_BYTES_PER_DAY:
             raise Stop("budget")
         last = self.state.last_request()
         if last is not None:
@@ -121,13 +125,13 @@ class Portal:
             raise Stop("errors")
         return RequestFailed(code, status)
 
-    def _send(self, url: str, headers: dict[str, str]) -> Response:
-        self._wait_for_turn()
+    def _send(self, url: str, headers: dict[str, str], max_bytes: int) -> Response:
+        self._wait_for_turn(max_bytes)
         now = self.clock.now()
         day = day_of(now)
         self.state.count_request(day, now)
         try:
-            response = self.sender.get(url, headers, rules.MAX_RESPONSE_BYTES)
+            response = self.sender.get(url, headers, max_bytes)
         except TransportError as e:
             self.state.count_answer(day, e.wire_bytes, self.clock.now())
             log.warning("FAIL %s %s", e.code, _log_path(url))
@@ -141,14 +145,14 @@ class Portal:
             raise Stop("blocked")
         return response
 
-    def get(self, path: str, *, if_modified_since: str = "") -> Reply:
+    def get(self, path: str, *, if_modified_since: str = "", max_bytes: int = rules.MAX_RESPONSE_BYTES) -> Reply:
         """Requests a path of the portal. Raises Stop or RequestFailed; returns only clear answers."""
         url = rules.PORTAL_ORIGIN + path
         headers = {"User-Agent": rules.USER_AGENT, "Accept": "*/*"}
         if if_modified_since:
             headers["If-Modified-Since"] = if_modified_since
         for _ in range(rules.MAX_REDIRECTS + 1):
-            response = self._send(url, headers)
+            response = self._send(url, headers, max_bytes)
             if response.status in _REDIRECTS:
                 url = _redirect_target(url, response.headers.get("location", ""))
                 if url is None:
