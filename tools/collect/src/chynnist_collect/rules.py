@@ -124,6 +124,28 @@ COLLECTION_LICENSE = (
 COLLECTION_HOMEPAGE = "https://github.com/marybezuhla/chynnist"
 TEST_TITLE_SUFFIX = " (пробна збірка)"
 
+# --- publishing (INDEX.md)
+
+RELEASES_URL = "https://github.com/marybezuhla/chynnist/releases/download/"
+INDEX_FORMAT = "chynnist-index-1"
+# Signed together with the index bytes, so that a signature can never be taken for another kind of message.
+INDEX_SIG_PREFIX = b"chynnist-index-sig-1\n"
+INDEX_TAG = "data"  # the one release that always holds the current index
+
+
+def month_tag(month: str) -> str:
+    """Release of one month's base and its patches, e.g. data-2026-11 (never v*, those are the app)."""
+    return f"{INDEX_TAG}-{month}"
+
+
+def base_file(seq: int) -> str:
+    return f"chynnist-{seq}.suvii"
+
+
+def patch_file(from_seq: int, to_seq: int) -> str:
+    return f"chynnist-{from_seq}-{to_seq}.patch.suvii"
+
+
 # Where the data signing key lives on the publisher's Mac (Keychain, generic password).
 KEYCHAIN_SERVICE = "chynnist-data-key"
 KEYCHAIN_ACCOUNT = "chynnist"
