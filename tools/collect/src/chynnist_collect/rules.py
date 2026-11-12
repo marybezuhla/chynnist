@@ -110,6 +110,65 @@ PRIORITY_OTHER_IN_FORCE = 4
 PRIORITY_NOT_IN_FORCE = 5
 PRIORITY_DAILY = 6
 
+# --- the collection (SPEC.md, appendix A)
+
+COLLECTION_ID = "8e3b6c1a-5d2f-4b7e-9a41-2c6f0d8e7b53"  # the same for every base and patch, forever
+COLLECTION_TITLE = "Законодавство України"
+COLLECTION_TITLE_EN = "Legislation of Ukraine"
+COLLECTION_PUBLISHER = "Chynnist"
+COLLECTION_SOURCE = "https://data.rada.gov.ua"
+COLLECTION_LICENSE = (
+    "Дані Порталу відкритих даних Верховної Ради України: вільне використання та поширення "
+    "з обов'язковим посиланням на джерело. Не є офіційним виданням."
+)
+COLLECTION_HOMEPAGE = "https://github.com/marybezuhla/chynnist"
+TEST_TITLE_SUFFIX = " (пробна збірка)"
+
+# Where the data signing key lives on the publisher's Mac (Keychain, generic password).
+KEYCHAIN_SERVICE = "chynnist-data-key"
+KEYCHAIN_ACCOUNT = "chynnist"
+
+# Names of the portal's document states (stan.txt) as enum values of the `status` field.
+STATUS_VALUES = {
+    0: ("unknown", "Не визначено", "Not specified"),
+    1: ("repealed", "Втратив чинність", "Repealed"),
+    2: ("coming_into_force", "Набирає чинності", "Coming into force"),
+    3: ("suspended", "Дію зупинено", "Suspended"),
+    4: ("restored", "Дію відновлено", "Restored"),
+    5: ("in_force", "Чинний", "In force"),
+    6: ("not_in_force_yet", "Не набрав чинності", "Not yet in force"),
+    7: ("not_applied", "Не застосовується на території України", "Not applied in Ukraine"),
+    8: ("partly_in_force", "Частково набрав чинності", "Partly in force"),
+    9: ("repealed_except", "Втратив чинність, крім окремих положень", "Repealed except some provisions"),
+}
+# Kinds known so far (typ.txt). Other codes are left out and counted in the build report;
+# the full dictionary comes from the portal later.
+KIND_VALUES = {
+    1: ("law", "Закон", "Law"),
+    2: ("resolution", "Постанова", "Resolution"),
+    3: ("decree", "Указ", "Decree"),
+    6: ("order", "Розпорядження", "Order"),
+    9: ("ministry_order", "Наказ", "Ministerial order"),
+    21: ("code_of_ukraine", "Кодекс України", "Code of Ukraine"),
+    124: ("code", "Кодекс", "Code"),
+    216: ("constitution", "Конституція України", "Constitution of Ukraine"),
+}
+
+
+def collection_fields() -> dict:
+    """`collection.fields` of the collection (SPEC.md, 7)."""
+
+    def enum(table: dict[int, tuple[str, str, str]]) -> dict:
+        return {key: {"uk": uk, "en": en} for key, uk, en in table.values()}
+
+    return {
+        "kind": {"type": "enum", "title": {"uk": "Вид", "en": "Type"}, "multi": True, "values": enum(KIND_VALUES)},
+        "status": {"type": "enum", "title": {"uk": "Стан", "en": "Status"}, "values": enum(STATUS_VALUES)},
+        "number": {"type": "text", "title": {"uk": "Номер", "en": "Number"}},
+        "edition": {"type": "date", "title": {"uk": "Редакція від", "en": "Edition of"}},
+    }
+
+
 _ID = re.compile(r"^[A-Za-z0-9_.:-]+$")
 _HTTP_DATE = re.compile(r"^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$")
 _HTTPS = re.compile(r"^https://[^\s<>\"'\\]+$")

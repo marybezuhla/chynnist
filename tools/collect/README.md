@@ -25,7 +25,14 @@ chynnist-collect catalog                   # оновити список усі�
 chynnist-collect add 254к/96-вр 2341-14    # або додати окремі документи до черги
 chynnist-collect run --minutes 55          # завантажувати, доки є час і ліміт
 chynnist-collect status                    # що зроблено і що чекає
+chynnist-collect keygen                    # один раз: ключ підпису даних у Keychain
+chynnist-collect build chynnist-1.suvii    # зібрати підписаний сувій із завантаженого
+chynnist-collect build proba.suvii --test-key   # пробна збірка з тимчасовим ключем
 ```
+
+Ключ підпису даних живе лише в Keychain на Mac видавця: застосунок довіряє тільки сувоям, підписаним ним. `keygen` ніколи не замінює наявний ключ, бо тоді всі встановлені застосунки відкидали б нові дані. Пробна збірка (`--test-key`) підписується тимчасовим ключем, який ніде не зберігається, і не витрачає номер стану.
+
+Після збирання поруч лежить `build-report.json`: лише числа (скільки документів, що пропущено, які класи й види порталу ще невідомі), без тексту документів.
 
 Список усіх документів — один великий файл порталу (близько 52 МБ, чверть денного ліміту). Тому збирач бере його не частіше ніж раз на тиждень і лише тоді, коли весь файл вміщається в залишок дня. `catalog --file doc.txt` бере список з уже завантаженого файлу.
 
@@ -58,6 +65,6 @@ The collector runs on the publisher's computer, not on GitHub servers. It follow
 
 All these numbers live in one file: `src/chynnist_collect/rules.py`.
 
-Commands: `chynnist-collect catalog` (refresh the list of all documents and the queue), `chynnist-collect add <number>…`, `chynnist-collect run --minutes 55`, `chynnist-collect status`. The queue goes: the Constitution, codes, laws, resolutions and decrees, other documents in force, documents not in force, and daily exchange rate notices last. A document whose edition has changed is queued again. The state is kept in the `work` folder; a run can be interrupted at any moment and the next one continues from the same place. The journal holds only document addresses and answer sizes.
+Commands: `chynnist-collect keygen` (once: the data signing key, kept only in the macOS Keychain), `chynnist-collect build <file> [--test-key]` (a signed scroll from what has been downloaded; a trial build uses a throwaway key), `chynnist-collect catalog` (refresh the list of all documents and the queue), `chynnist-collect add <number>…`, `chynnist-collect run --minutes 55`, `chynnist-collect status`. The queue goes: the Constitution, codes, laws, resolutions and decrees, other documents in force, documents not in force, and daily exchange rate notices last. A document whose edition has changed is queued again. The state is kept in the `work` folder; a run can be interrupted at any moment and the next one continues from the same place. The journal holds only document addresses and answer sizes.
 
 The tests never contact the portal: they use a saved page and a small server on the same computer.

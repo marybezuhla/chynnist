@@ -33,6 +33,8 @@ PROBES = [
     ("show-civil-code.html", "/laws/show/435-15", 6_000_000),
     ("show-small.txt", "/laws/show/n0438500-26.txt", 300_000),
     ("ogd-stan.txt", "/ogd/zak/laws/data/csv/stan.txt", 50_000),
+    # Назви видів документів: потрібні для фільтра «Вид» у застосунку.
+    ("ogd-typ.txt", "/ogd/zak/laws/data/csv/typ.txt", 200_000),
     # Стилі тексту: з них збирач дізнається, які класи означають жирний, курсив, вирівнювання.
     ("u_text.css", "https://zakon.rada.gov.ua/laws/file/util/0/u_text.css", 500_000),
 ]

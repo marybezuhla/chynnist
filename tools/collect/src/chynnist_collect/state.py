@@ -102,6 +102,14 @@ class State:
     def set_catalog_at(self, moment: float) -> None:
         self._set("catalog_at", moment)
 
+    def next_build_seq(self) -> int:
+        """Number of the next collection state; every build gets a larger one (SPEC.md, state.seq)."""
+        last = self._get("build_seq")
+        return int(last or 0) + 1
+
+    def set_build_seq(self, seq: int) -> None:
+        self._set("build_seq", float(seq))
+
     def last_request(self) -> float | None:
         return self._get("last_request")
 
@@ -199,6 +207,12 @@ class State:
         unpacker = zlib.decompressobj()
         page = unpacker.decompress(row[0], rules.MAX_DECODED_BYTES)
         return page if unpacker.eof else None
+
+    def stored(self) -> list[tuple[str, float]]:
+        """Documents whose page we have, with the moment it was received, in path order."""
+        return self.conn.execute(
+            "SELECT docs.nreg, docs.fetched_at FROM docs JOIN pages ON pages.nreg = docs.nreg ORDER BY docs.nreg"
+        ).fetchall()
 
     def counts(self) -> Counts:
         total, waiting, done, missing, given_up = self.conn.execute(

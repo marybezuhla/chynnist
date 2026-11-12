@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Command line of the collector: fill the queue (`catalog`, `add`), `run` the download, see `status`."""
+"""Command line of the collector: fill the queue (`catalog`, `add`), `run` the download, `build` a scroll."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from . import catalog, fetch, rules
+from suvii import SuviiError, keys
+
+from . import build, catalog, fetch, rules, signing
 from .catalog import CatalogError
 from .portal import Portal, RequestFailed, Stop, SystemClock, day_of
 from .state import State
@@ -128,6 +130,59 @@ def _catalog(state: State, args: argparse.Namespace, work: Path) -> int:
     return _status(state)
 
 
+_KEY_PROBLEMS = {
+    "missing": "Ключа даних ще немає. Створіть його командою keygen або зберіть пробно з --test-key.",
+    "exists": "Ключ даних уже є. Новий ключ зробив би всі видані дані неперевірними, тому його не створено.",
+    "no_keychain": "Ключ даних зберігається лише в Keychain на Mac.",
+    "bad": "Не вдалося прочитати або зберегти ключ у Keychain.",
+}
+
+
+def _keygen() -> int:
+    try:
+        public = signing.create()
+    except signing.SigningKeyError as e:
+        print(_KEY_PROBLEMS[e.code])
+        return 1
+    print("Ключ даних створено й збережено в Keychain.")
+    print(f"Публічний ключ (його вбудовують у застосунок): {public}")
+    return 0
+
+
+def _build(state: State, args: argparse.Namespace, work: Path) -> int:
+    if not state.stored():
+        print("Ще немає жодної завантаженої сторінки: збирати нічого.")
+        return 1
+    if args.out.exists():
+        print("Такий файл уже є. Виберіть іншу назву.")
+        return 1
+    if args.test_key:
+        key = keys.generate()  # lives only in memory and is forgotten after the build
+    else:
+        try:
+            key = signing.load()
+        except signing.SigningKeyError as e:
+            print(_KEY_PROBLEMS[e.code])
+            return 1
+    clock = SystemClock()
+    source = state.catalog_at() or clock.now()
+    source_date = datetime.fromtimestamp(source, rules.day_zone()).date().isoformat()
+    try:
+        report = build.build(state, work, args.out, key, source_date=source_date, test=args.test_key)
+    except (SuviiError, OSError):
+        print("Не вдалося зібрати сувій. Попередні файли не змінено.")
+        return 1
+    skipped = sum(report.not_converted.values())
+    print(f"Сувій зібрано: {args.out} (стан {report.seq})")
+    print(f"  документів: {report.documents}, без картки: {report.without_card}, пропущено: {skipped}")
+    if not report.styles_found:
+        print("  Стилів порталу (u_text.css) у робочій теці немає: текст без жирного й курсиву.")
+    if args.test_key:
+        print(f"  Пробний ключ, ніде не збережений. Публічний: {keys.public_text(key)}")
+    print(f"  Подробиці: {work / build.REPORT_NAME}")
+    return 0
+
+
 def _status(state: State) -> int:
     clock = SystemClock()
     counts = state.counts()
@@ -159,6 +214,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--minutes", type=float, default=55, help="скільки хвилин працювати (типово: 55)")
     cat = commands.add_parser("catalog", help="оновити список усіх документів порталу й чергу")
     cat.add_argument("--file", type=Path, help="узяти список з готового файлу doc.txt, без завантаження")
+    commands.add_parser("keygen", help="створити ключ підпису даних у Keychain (один раз)")
+    make = commands.add_parser("build", help="зібрати сувій із завантажених сторінок")
+    make.add_argument("out", type=Path, help="куди записати, наприклад chynnist-1.suvii")
+    make.add_argument("--test-key", action="store_true", help="пробна збірка: тимчасовий ключ, номер стану не витрачається")
     commands.add_parser("status", help="показати стан")
     args = parser.parse_args(argv)
 
@@ -171,6 +230,10 @@ def main(argv: list[str] | None = None) -> int:
             return _run(state, args, args.work)
         if args.command == "catalog":
             return _catalog(state, args, args.work)
+        if args.command == "keygen":
+            return _keygen()
+        if args.command == "build":
+            return _build(state, args, args.work)
         return _status(state)
     finally:
         state.close()
