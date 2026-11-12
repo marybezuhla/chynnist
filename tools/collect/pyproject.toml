@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "chynnist-collect"
 version = "0.1.0"
 description = "Collector for Chynnist: documents of the Verkhovna Rada open data portal as a Suvii collection"
+readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,6 +16,9 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+
+[project.scripts]
+chynnist-collect = "chynnist_collect.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
