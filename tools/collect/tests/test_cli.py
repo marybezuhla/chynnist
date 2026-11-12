@@ -64,3 +64,27 @@ def test_catalog_from_a_wrong_or_absent_file(tmp_path, capsys):
     assert "не схожий на список" in capsys.readouterr().out
     assert main(["--work", str(tmp_path / "w"), "catalog", "--file", str(tmp_path / "none.txt")]) == 1
     assert "Не вдалося прочитати" in capsys.readouterr().out
+
+
+def test_trial_build_from_the_command_line(tmp_path, capsys, constitution_page):
+    from chynnist_collect.state import Task
+
+    work = tmp_path / "work"
+    work.mkdir()
+    state = State(work / "collect.db")
+    state.add("254к/96-вр", 0)
+    state.store(Task("254к/96-вр", "", ""), constitution_page.encode(), "", 1794391200.0)
+    state.close()
+    out = tmp_path / "trial.suvii"
+    assert main(["--work", str(work), "build", str(out), "--test-key"]) == 0
+    printed = capsys.readouterr().out
+    assert "Сувій зібрано" in printed and "документів: 1" in printed and "Пробний ключ" in printed
+    assert "u_text.css" in printed  # tells that the text is without bold and italic
+    assert out.exists()
+    assert main(["--work", str(work), "build", str(out), "--test-key"]) == 1  # never overwrites
+    assert "уже є" in capsys.readouterr().out
+
+
+def test_build_without_pages(tmp_path, capsys):
+    assert main(["--work", str(tmp_path), "build", str(tmp_path / "x.suvii"), "--test-key"]) == 1
+    assert "збирати нічого" in capsys.readouterr().out
