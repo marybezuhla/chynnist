@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS days (
   requests INTEGER NOT NULL DEFAULT 0,
   bytes    INTEGER NOT NULL DEFAULT 0
 ) WITHOUT ROWID;
+-- Bytes of each hour by Kyiv time, to spread the day's allowance evenly.
+CREATE TABLE IF NOT EXISTS hours (
+  hour  TEXT PRIMARY KEY NOT NULL,
+  bytes INTEGER NOT NULL DEFAULT 0
+) WITHOUT ROWID;
 -- The queue. A document waits while `got` differs from `wanted` (the edition we want to have).
 CREATE TABLE IF NOT EXISTS docs (
   nreg          TEXT PRIMARY KEY NOT NULL,
@@ -83,6 +88,16 @@ class State:
     def _set(self, key: str, value: float) -> None:
         self.conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)", (key, repr(value)))
 
+    def recent_answers(self) -> str:
+        """The last answers of the portal, oldest first: "r" for a refusal, "." for anything else."""
+        row = self.conn.execute("SELECT value FROM settings WHERE key = 'recent'").fetchone()
+        return row[0] if row else ""
+
+    def note_answer(self, refused: bool) -> str:
+        recent = (self.recent_answers() + ("r" if refused else "."))[-rules.REFUSALS_WINDOW :]
+        self.conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES ('recent', ?)", (recent,))
+        return recent
+
     def blocked_until(self) -> float | None:
         return self._get("blocked_until")
 
@@ -129,9 +144,19 @@ class State:
         self._set("last_request", moment)
         self.conn.execute("COMMIT")
 
-    def count_answer(self, day: str, amount: int, moment: float) -> None:
+    def hour_bytes(self, hour: str) -> int:
+        row = self.conn.execute("SELECT bytes FROM hours WHERE hour = ?", (hour,)).fetchone()
+        return row[0] if row else 0
+
+    def count_answer(self, day: str, amount: int, moment: float, hour: str = "") -> None:
         """Called when the answer has ended, so that the pause is counted from its end."""
         self.conn.execute("BEGIN")
+        if hour:
+            self.conn.execute(
+                "INSERT INTO hours(hour, bytes) VALUES (?, ?) ON CONFLICT(hour) DO UPDATE SET bytes = bytes + excluded.bytes",
+                (hour, amount),
+            )
+            self.conn.execute("DELETE FROM hours WHERE hour < ?", (day,))  # older days are of no use
         self.conn.execute(
             "INSERT INTO days(day, bytes) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET bytes = bytes + excluded.bytes",
             (day, amount),
@@ -213,6 +238,12 @@ class State:
         return self.conn.execute(
             "SELECT docs.nreg, docs.fetched_at FROM docs JOIN pages ON pages.nreg = docs.nreg ORDER BY docs.nreg"
         ).fetchall()
+
+    def refused(self) -> list[str]:
+        """Documents the portal refused to give: most likely there is no text of them."""
+        return [row[0] for row in self.conn.execute(
+            "SELECT nreg FROM docs WHERE got = wanted AND status = ? ORDER BY nreg", (rules.REFUSED_DOCUMENT,)
+        )]  # fmt: skip
 
     def counts(self) -> Counts:
         total, waiting, done, missing, given_up = self.conn.execute(

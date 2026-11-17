@@ -178,3 +178,33 @@ def test_not_modified_only_when_we_asked(state, clock):
     assert sender.calls[0][2]["If-Modified-Since"] == "Wed, 11 Nov 2026 10:00:00 GMT"
     with pytest.raises(RequestFailed):
         portal.get("/a")
+
+
+def test_hourly_share_spreads_the_bytes(state, clock, monkeypatch):
+    monkeypatch.setattr(rules, "MAX_BYTES_PER_HOUR", 10)
+    portal, sender = make(state, clock, {DATA + "/a": answer_of(200, b"123456")})
+    portal.get("/a")
+    portal.get("/a")  # 6 bytes this hour: under the share, so this one goes
+    with pytest.raises(Stop) as stop:
+        portal.get("/a")
+    assert stop.value.reason == "hour" and len(sender.calls) == 2
+    clock.moment += 3600
+    assert portal.get("/a").status == 200
+
+
+def test_refusal_outside_document_pages_is_a_block(state, clock):
+    portal, sender = make(state, clock, {DATA + "/a": answer_of(403), DATA + "/b": OK})
+    with pytest.raises(Stop):
+        portal.get("/a")  # without refusal_ok, as for the list of documents
+    with pytest.raises(Stop):
+        portal.get("/b", refusal_ok=True)
+    assert len(sender.calls) == 1
+
+
+def test_one_refusal_of_a_document_is_an_answer_and_remembered_across_runs(state, clock):
+    portal, _ = make(state, clock, {DATA + "/a": answer_of(403), DATA + "/b": OK})
+    assert portal.get("/a", refusal_ok=True).status == 403
+    another_run, sender = make(state, clock, {DATA + "/a": answer_of(403)})
+    with pytest.raises(Stop) as stop:  # the second in a row, even in the next run
+        another_run.get("/a", refusal_ok=True)
+    assert stop.value.reason == "blocked" and len(sender.calls) == 1

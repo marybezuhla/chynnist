@@ -41,14 +41,23 @@ PORTAL_ORIGIN = "https://data.rada.gov.ua"
 FETCH_HOSTS = frozenset({"data.rada.gov.ua", "zakon.rada.gov.ua"})
 # The portal asks for 5-7 seconds between requests. A random value does not look like an attack.
 PAUSE_SECONDS = (5.0, 7.0)
-# The portal blocks an address that ignores its rules. After the first refusal we stop for a day.
+# The portal blocks an address that ignores its rules; 429 always means that, and we stop for a day.
+# 403 also comes for a single document whose text the portal does not give (the website shows 404
+# for it). One such answer marks the document and the work goes on; a second one in a row, or a
+# third among the last ten answers, is taken as a block.
 BLOCK_STATUSES = frozenset({403, 429})
+REFUSED_DOCUMENT = 403
+REFUSALS_WINDOW = 10
+MAX_REFUSALS_IN_WINDOW = 2
 BLOCK_SECONDS = 24 * 60 * 60
 # The portal counts its daily limits by Kyiv time. Old time zone data knows only the second name.
 DAY_ZONES = ("Europe/Kyiv", "Europe/Kiev")
 # Portal limits are 100 000 requests and 200 MB a day; we use at most 90 %.
 MAX_REQUESTS_PER_DAY = 90_000
 MAX_BYTES_PER_DAY = 180_000_000
+# Bytes are spread over the day instead of taken at once: a burst of large pages may look like an
+# attack to the portal's protection even with pauses between requests.
+MAX_BYTES_PER_HOUR = MAX_BYTES_PER_DAY // 12
 # One answer, as it comes over the network. Small enough that the answer that crosses our daily
 # limit still leaves the day under the portal's 200 MB.
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -82,7 +91,9 @@ MIN_CATALOG_ROWS = 100_000
 
 # Codes of the portal's dictionaries typ.txt and stan.txt.
 TYPE_CONSTITUTION = 216
-TYPE_CODES = frozenset({21, 124})
+TYPE_CODE_OF_UKRAINE = 21
+TYPE_CODE = 124
+TYPE_INTERNATIONAL = 64
 TYPE_LAW = 1
 TYPE_RESOLUTIONS_AND_DECREES = frozenset({2, 3})
 # 1 lost force, 3 suspended, 6 never came into force, 7 not applied in Ukraine.

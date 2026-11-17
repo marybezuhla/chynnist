@@ -67,6 +67,9 @@ def test_byte_outside_the_encoding_does_not_lose_the_document():
         (Card("z0001-20", "Про щось", 5, (9,), ""), rules.PRIORITY_OTHER_IN_FORCE),
         (Card("5-20", "Про щось", 0, (), ""), rules.PRIORITY_OTHER_IN_FORCE),  # status unknown
         (Card("1001-05", "Кодекс, що втратив чинність", 1, (21,), ""), rules.PRIORITY_NOT_IN_FORCE),
+        # International documents of the kind "Кодекс" (codes of conduct, treaties) are not codes of Ukraine.
+        (Card("884_002", "Кодекс поведінки міжнародних спостерігачів", 5, (124, 64), ""), rules.PRIORITY_OTHER_IN_FORCE),
+        (Card("826_001-20", "Угода", 5, (17, 64, 124, 18), ""), rules.PRIORITY_OTHER_IN_FORCE),
         (Card("6-20", "Про щось", 6, (1,), ""), rules.PRIORITY_NOT_IN_FORCE),
         (Card("n0438500-26", "Про облікову ціну банківських металів", 0, (95,), ""), rules.PRIORITY_DAILY),
         (Card("v0001500-26", "Про офіційний курс гривні щодо іноземних валют", 5, (95,), ""), rules.PRIORITY_DAILY),

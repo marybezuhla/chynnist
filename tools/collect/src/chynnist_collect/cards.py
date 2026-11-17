@@ -75,7 +75,8 @@ def priority(card: Card) -> int:
     types = set(card.types)
     if rules.TYPE_CONSTITUTION in types:
         return rules.PRIORITY_CONSTITUTION
-    if types & rules.TYPE_CODES:
+    # "Кодекс" (124) is also the kind of many international documents (codes of conduct, treaties).
+    if rules.TYPE_CODE_OF_UKRAINE in types or (rules.TYPE_CODE in types and rules.TYPE_INTERNATIONAL not in types):
         return rules.PRIORITY_CODE
     if rules.TYPE_LAW in types:
         return rules.PRIORITY_LAW
