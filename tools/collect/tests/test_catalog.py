@@ -102,6 +102,7 @@ def test_bad_answer_keeps_the_old_file_and_queue(state, clock, tmp_path):
     assert (tmp_path / "doc.txt").read_bytes() == b"old" and not (tmp_path / "doc.txt.part").exists()
     assert state.counts().total == 0 and state.catalog_at() is None
     for answer, error in ((answer_of(404), CatalogError), (answer_of(500), RequestFailed), (answer_of(403), Stop)):
+        clock.moment += 3600  # the list takes an hour of its own
         portal, _ = portal_for(state, clock, {URL: answer})
         with pytest.raises(error):
             catalog.refresh(state, portal, clock, tmp_path)
@@ -120,3 +121,13 @@ def test_size_limit_of_the_list_is_passed_to_the_network(state, clock, tmp_path)
     catalog.refresh(state, portal, clock, tmp_path)
     portal.get("/laws/show/1-20")
     assert seen == [rules.MAX_CATALOG_BYTES, rules.MAX_RESPONSE_BYTES]
+
+
+def test_list_comes_only_at_the_start_of_an_hour(state, clock, tmp_path):
+    portal, sender = portal_for(state, clock, {URL: answer_of(200, LIST), "https://data.rada.gov.ua/x": answer_of(200, b"page")})
+    portal.get("/x")
+    with pytest.raises(Stop) as stop:
+        catalog.refresh(state, portal, clock, tmp_path)
+    assert stop.value.reason == "hour" and len(sender.calls) == 1
+    clock.moment += 3600
+    assert catalog.refresh(state, portal, clock, tmp_path).documents == 7

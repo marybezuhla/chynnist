@@ -98,3 +98,17 @@ def test_release_needs_the_real_key(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(signing, "load", missing)
     assert main(["--work", str(tmp_path), "release", str(tmp_path / "x.suvii")]) == 1
     assert "keygen" in capsys.readouterr().out
+
+
+def test_status_lists_refused_documents(tmp_path, capsys):
+    from chynnist_collect.state import Task
+
+    state = State(tmp_path / "collect.db")
+    for nreg in ("896_035", "1-20"):
+        state.add(nreg, 0)
+    state.missing(Task("896_035", "", ""), 403, 1.0)
+    state.missing(Task("1-20", "", ""), 404, 1.0)
+    state.close()
+    assert main(["--work", str(tmp_path), "status"]) == 0
+    out = capsys.readouterr().out
+    assert "немає на порталі: 2" in out and "портал не дав тексту (1): 896_035" in out

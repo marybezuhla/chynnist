@@ -31,6 +31,7 @@ _ENDED = {
     "time": "Час запуску вийшов. Наступний запуск продовжить з цього місця.",
     "blocked": "Портал відмовив у доступі. Збирач не робитиме запитів добу.",
     "budget": "Денний ліміт вичерпано. Продовження завтра.",
+    "hour": "Ліміт цієї години вичерпано. Наступний запуск продовжить.",
     "errors": "Кілька помилок поспіль: немає мережі або портал недоступний. Збирач зачекає кілька годин.",
 }
 
@@ -222,6 +223,10 @@ def _status(state: State) -> int:
     print(f"Документів у списку: {counts.total}")
     print(f"  завантажено: {counts.done}, чекає: {counts.waiting}")
     print(f"  немає на порталі: {counts.missing}, не вдалося: {counts.given_up}")
+    refused = state.refused()
+    if refused:
+        shown = ", ".join(refused[:10]) + (" …" if len(refused) > 10 else "")
+        print(f"  портал не дав тексту ({len(refused)}): {shown}")
     print(f"Сьогодні: запитів {requests}, отримано {used / 1_000_000:.1f} МБ з {rules.MAX_BYTES_PER_DAY // 1_000_000}")
     catalog_at = state.catalog_at()
     if catalog_at is not None:

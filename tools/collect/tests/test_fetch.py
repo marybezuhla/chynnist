@@ -52,13 +52,40 @@ def test_run_ends_when_its_time_is_over(state, clock):
     assert 9 <= len(sender.calls) <= 13  # one request every 5-7 seconds
 
 
-def test_refusal_ends_the_run_and_keeps_the_queue(state, clock):
+def test_refused_document_is_noted_and_the_work_goes_on(state, clock):
+    for n in range(1, 5):
+        state.add(f"{n}-20", n)
+    routes = {SHOW + "1-20": answer_of(200, b"one"), SHOW + "2-20": answer_of(403), SHOW + "3-20": answer_of(200, b"three")}
+    ended, sender = run(state, clock, routes)
+    assert ended == "done" and len(sender.calls) == 4
+    assert state.refused() == ["2-20"] and state.page("3-20") == b"three"
+    assert run(state, clock, routes)[1].calls == []  # a refused document is not asked again
+
+
+def test_two_refusals_in_a_row_are_a_block(state, clock):
+    for n in range(1, 6):
+        state.add(f"{n}-20", n)
+    routes = {SHOW + "1-20": answer_of(200, b"one"), SHOW + "2-20": answer_of(403), SHOW + "3-20": answer_of(403)}
+    ended, sender = run(state, clock, routes)
+    assert ended == "blocked" and len(sender.calls) == 3
+    assert state.refused() == ["2-20"] and state.counts().waiting == 3  # 3-20 waits for another day
+    assert run(state, clock, routes)[1].calls == []
+
+
+def test_too_many_refusals_among_recent_answers_are_a_block(state, clock):
+    for n in range(1, 11):
+        state.add(f"{n}-20", n)
+    routes = {SHOW + f"{n}-20": answer_of(403 if n in (2, 4, 6) else 200, b"x") for n in range(1, 11)}
+    ended, sender = run(state, clock, routes)
+    assert ended == "blocked" and len(sender.calls) == 6  # the third refusal among ten
+    assert state.refused() == ["2-20", "4-20"]
+
+
+def test_429_is_always_a_block(state, clock):
     state.add("1-20", 0)
     state.add("2-20", 1)
-    ended, sender = run(state, clock, {SHOW + "1-20": answer_of(403)})
-    assert ended == "blocked" and len(sender.calls) == 1
-    assert state.counts().waiting == 2
-    assert run(state, clock, {})[0] == "blocked"
+    ended, sender = run(state, clock, {SHOW + "1-20": answer_of(429)})
+    assert ended == "blocked" and len(sender.calls) == 1 and state.refused() == []
 
 
 def test_failed_documents_do_not_stop_the_others(state, clock):
@@ -67,7 +94,7 @@ def test_failed_documents_do_not_stop_the_others(state, clock):
     state.add("3-20", 2)
     routes = {
         SHOW + "1-20": answer_of(500),
-        SHOW + "2-20": TransportError("too_large", rules.MAX_RESPONSE_BYTES + 1),
+        SHOW + "2-20": TransportError("too_large", 1000),
         SHOW + "3-20": answer_of(200, b"ok"),
     }
     ended, sender = run(state, clock, routes)

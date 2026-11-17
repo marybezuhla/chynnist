@@ -10,13 +10,13 @@ from .state import State
 
 def run(state: State, portal: Portal, clock: Clock, until: float) -> str:
     """Fetches waiting documents. Returns why it ended: done, later (the rest waits for a retry),
-    time, blocked, budget or errors."""
+    time, blocked, budget, hour or errors. A document the portal refuses is noted as missing."""
     while clock.now() < until:
         task = state.next_task(clock.now())
         if task is None:
             return "later" if state.counts().waiting else "done"
         try:
-            reply = portal.get(rules.show_url_path(task.nreg), if_modified_since=task.last_modified)
+            reply = portal.get(rules.show_url_path(task.nreg), if_modified_since=task.last_modified, refusal_ok=True)
         except Stop as stop:
             return stop.reason
         except RequestFailed as failure:

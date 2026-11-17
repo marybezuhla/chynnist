@@ -11,7 +11,8 @@
 - називає себе так, як просить портал (`OpenData`), і звертається лише до `data.rada.gov.ua` та `zakon.rada.gov.ua`;
 - між будь-якими двома запитами чекає 5–7 секунд;
 - за день використовує не більше 90 % дозволеного (180 МБ і 90 000 запитів, доба за київським часом);
-- після першої відмови (403 або 429) не робить жодного запиту добу;
+- рівномірно розподіляє обсяг протягом дня: не більше 15 МБ на годину;
+- одна відмова 403 на сторінці документа означає, що тексту цього документа портал не дає: документ позначається, робота йде далі; 429, дві відмови поспіль або три серед останніх десяти відповідей — і збирач не робить жодного запиту добу;
 - після трьох помилок мережі поспіль робить перерву на три години;
 - не працює у два вікна одночасно;
 - список усіх документів бере не частіше ніж раз на тиждень.
@@ -61,7 +62,8 @@ The collector runs on the publisher's computer, not on GitHub servers. It follow
 - it names itself as the portal asks (`OpenData`) and talks only to `data.rada.gov.ua` and `zakon.rada.gov.ua`;
 - it waits 5–7 seconds between any two requests;
 - it uses at most 90 % of the daily allowance (180 MB and 90,000 requests, the day by Kyiv time);
-- after the first refusal (403 or 429) it makes no requests for a day;
+- it spreads the bytes over the day: at most 15 MB an hour;
+- a single 403 on a document page means the portal gives no text of that document: the document is noted and the work goes on; 429, two refusals in a row, or three among the last ten answers stop all requests for a day;
 - after three network failures in a row it rests for three hours;
 - it never runs twice at the same time;
 - the list of all documents (one file of about 52 MB) is taken at most once a week, and only when the whole file fits into what is left of the day.
