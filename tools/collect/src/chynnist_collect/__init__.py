@@ -4,7 +4,6 @@
 __version__ = "0.1.0"
 
 from .convert import Converted, Report, convert
-from .styles import Styles
 from .tree import ConvertError
 
-__all__ = ["ConvertError", "Converted", "Report", "Styles", "convert"]
+__all__ = ["ConvertError", "Converted", "Report", "convert"]

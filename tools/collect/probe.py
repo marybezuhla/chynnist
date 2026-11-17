@@ -35,8 +35,6 @@ PROBES = [
     ("ogd-stan.txt", "/ogd/zak/laws/data/csv/stan.txt", 50_000),
     # Назви видів документів: потрібні для фільтра «Вид» у застосунку.
     ("ogd-typ.txt", "/ogd/zak/laws/data/csv/typ.txt", 200_000),
-    # Стилі тексту: з них збирач дізнається, які класи означають жирний, курсив, вирівнювання.
-    ("u_text.css", "https://zakon.rada.gov.ua/laws/file/util/0/u_text.css", 500_000),
 ]
 
 

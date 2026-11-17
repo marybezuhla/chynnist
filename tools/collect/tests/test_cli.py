@@ -79,7 +79,6 @@ def test_trial_build_from_the_command_line(tmp_path, capsys, constitution_page):
     assert main(["--work", str(work), "build", str(out), "--test-key"]) == 0
     printed = capsys.readouterr().out
     assert "Сувій зібрано" in printed and "документів: 1" in printed and "Пробний ключ" in printed
-    assert "u_text.css" in printed  # tells that the text is without bold and italic
     assert out.exists()
     assert main(["--work", str(work), "build", str(out), "--test-key"]) == 1  # never overwrites
     assert "уже є" in capsys.readouterr().out

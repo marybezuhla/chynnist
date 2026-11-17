@@ -15,12 +15,11 @@ from suvii import Document, SuviiError, Writer
 from . import cards, rules
 from .cards import Card
 from .convert import Report, convert
+from .kinds import KINDS
 from .state import State
-from .styles import Styles
 from .tree import ConvertError
 
 REPORT_NAME = "build-report.json"
-STYLES_NAME = "u_text.css"
 
 
 @dataclass
@@ -33,11 +32,9 @@ class BuildReport:
     not_converted: dict[str, int] = field(default_factory=dict)  # error code -> documents
     with_images: int = 0
     dropped_links: int = 0
+    without_contents: int = 0  # no heading was found in the text
     unknown_kinds: dict[str, int] = field(default_factory=dict)  # portal type code -> documents
-    unknown_classes: dict[str, int] = field(default_factory=dict)  # style class -> documents
     unknown_tags: dict[str, int] = field(default_factory=dict)
-    unknown_tree_kinds: dict[str, int] = field(default_factory=dict)
-    styles_found: bool = False
 
 
 def _decode(page: bytes) -> str:
@@ -64,9 +61,8 @@ def _facets(nreg: str, card: Card | None, unknown_kinds: Counter[str]) -> list[t
     if status is not None:
         facets.append(("status", status[0]))
     for code in dict.fromkeys(card.types):
-        kind = rules.KIND_VALUES.get(code)
-        if kind is not None:
-            facets.append(("kind", kind[0]))
+        if code in KINDS:
+            facets.append(("kind", str(code)))
         else:
             unknown_kinds[str(code)] += 1
     if card.edition and card.edition[4:] != "0000":
@@ -74,10 +70,8 @@ def _facets(nreg: str, card: Card | None, unknown_kinds: Counter[str]) -> list[t
     return facets
 
 
-def _document(
-    nreg: str, fetched_at: float | None, page: bytes, card: Card | None, styles: Styles
-) -> tuple[Document, Report]:
-    converted = convert(_decode(page), nreg=nreg, styles=styles)
+def _document(nreg: str, fetched_at: float | None, page: bytes, card: Card | None) -> tuple[Document, Report]:
+    converted = convert(_decode(page), nreg=nreg)
     # "updated" is when this text was taken from the portal: the edition date says nothing
     # about the time of day, and a reader compares these values to find newer copies.
     doc = Document(
@@ -100,13 +94,11 @@ def build(
     test: bool = False,
 ) -> BuildReport:
     """Writes the collection to `out` and the report next to the state. Raises SuviiError, OSError."""
-    css = work / STYLES_NAME
-    styles = Styles.from_css(css.read_text(encoding="utf-8", errors="replace")) if css.exists() else Styles()
     catalog_file = work / "doc.txt"
     by_nreg = {card.nreg: card for card in cards.parse(catalog_file.read_bytes())[0]} if catalog_file.exists() else {}
 
-    report = BuildReport(seq=state.next_build_seq(), styles_found=css.exists())
-    counters: dict[str, Counter[str]] = {name: Counter() for name in ("kinds", "classes", "tags", "tree", "errors")}
+    report = BuildReport(seq=state.next_build_seq())
+    counters: dict[str, Counter[str]] = {name: Counter() for name in ("kinds", "tags", "errors")}
     title = rules.COLLECTION_TITLE + (rules.TEST_TITLE_SUFFIX if test else "")
     with Writer(
         out,
@@ -131,7 +123,7 @@ def build(
                 continue
             card = by_nreg.get(nreg)
             try:
-                doc, page_report = _document(nreg, fetched_at, page, card, styles)
+                doc, page_report = _document(nreg, fetched_at, page, card)
                 doc.facets = _facets(nreg, card, counters["kinds"])
                 writer.add(doc)
             except ConvertError as e:
@@ -144,16 +136,13 @@ def build(
             report.without_card += card is None
             report.with_images += page_report.images > 0
             report.dropped_links += page_report.dropped_links
-            counters["classes"].update(page_report.unknown_classes)
+            report.without_contents += not doc.toc
             counters["tags"].update(page_report.unknown_tags)
-            counters["tree"].update(page_report.unknown_kinds)
         writer.finish(key)
     if not test:
         state.set_build_seq(report.seq)  # a trial build must not use up a number of the real ones
     report.not_converted = dict(counters["errors"].most_common())
     report.unknown_kinds = dict(counters["kinds"].most_common())
-    report.unknown_classes = dict(counters["classes"].most_common())
     report.unknown_tags = dict(counters["tags"].most_common())
-    report.unknown_tree_kinds = dict(counters["tree"].most_common())
     (work / REPORT_NAME).write_text(json.dumps(asdict(report), ensure_ascii=False, indent=1), encoding="utf-8")
     return report
