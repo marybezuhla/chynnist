@@ -175,8 +175,8 @@ def _build(state: State, args: argparse.Namespace, work: Path) -> int:
     skipped = sum(report.not_converted.values())
     print(f"Сувій зібрано: {args.out} (стан {report.seq})")
     print(f"  документів: {report.documents}, без картки: {report.without_card}, пропущено: {skipped}")
-    if not report.styles_found:
-        print("  Стилів порталу (u_text.css) у робочій теці немає: текст без жирного й курсиву.")
+    if report.without_contents:
+        print(f"  без змісту (заголовків не знайдено): {report.without_contents}")
     if args.test_key:
         print(f"  Пробний ключ, ніде не збережений. Публічний: {keys.public_text(key)}")
     print(f"  Подробиці: {work / build.REPORT_NAME}")

@@ -2,7 +2,8 @@
 """Converts the text of a portal page into a Suvii document body with a table of contents.
 
 What is kept: paragraphs, tables, preformatted text, bold/italic/underline/strike/sub/sup, links,
-anchors (`<a name>` becomes `id`), structure marks (`data-tree` becomes the table of contents).
+anchors (`<a name>` becomes `id`). Headings found in the text (structure.py) become the table of
+contents and are shown in bold; editorial notes `{...}` are marked.
 What is dropped: scripts, styles, images, layout attributes, everything outside the safe subset.
 """
 
@@ -28,7 +29,7 @@ from .render import (
     paragraphs,
     render,
 )
-from .styles import ClassStyle, Styles
+from .structure import classify, levels
 from .tree import ConvertError, Node, find_by_id, parse
 
 _INLINE_FLAGS = {
@@ -53,7 +54,8 @@ _NOT_FAITHFUL = frozenset({"ul", "ol", "li", "dl", "dt", "dd"})
 # Collapsible white space. A no-break space is not in the list: it is meaningful ("ст. 5").
 _SPACE = re.compile(r"[ \t\n\r\f\v]+")
 _HIDDEN = re.compile(r"display\s*:\s*none")
-_KIND = re.compile(r"[a-z]+")
+# What the portal writes in place of a picture it does not give out.
+_IMAGE_PLACEHOLDER = "[ image ]"
 
 
 @dataclass(frozen=True)
@@ -63,8 +65,6 @@ class Report:
     text_chars: int
     images: int
     dropped_links: int
-    unknown_kinds: tuple[str, ...]
-    unknown_classes: tuple[str, ...]
     unknown_tags: tuple[str, ...]  # elements not known or not written faithfully (lists)
 
 
@@ -150,36 +150,24 @@ def _span(value: str) -> int:
 
 
 class _Converter:
-    def __init__(self, nreg: str, styles: Styles) -> None:
+    def __init__(self, nreg: str) -> None:
         self.nreg = nreg
-        self.styles = styles
         self.containers: list[list[Block]] = [[]]
         self.para: Para | None = None
         self.pending: list[str] = []  # anchors waiting for the next paragraph with text
         self.ids: set[str] = set()
-        self.kind_of: dict[str, str] = {}
         self.images = 0
         self.dropped_links = 0
-        self.unknown_kinds: set[str] = set()
-        self.unknown_classes: set[str] = set()
         self.unknown_tags: set[str] = set()
 
     # --- formatting of one element
 
-    def _style(self, node: Node) -> ClassStyle:
-        flags: set[str] = set()
+    @staticmethod
+    def _style(node: Node) -> tuple[str, bool]:
+        """Alignment and whether the element is hidden."""
         align = node.attrs.get("align", "").lower()
         hidden = _HIDDEN.search(node.attrs.get("style", "").lower()) is not None
-        for name in node.attrs.get("class", "").split():
-            style = self.styles.get(name)
-            if style is None:
-                if rules.STYLE_CLASS.match(name):
-                    self.unknown_classes.add(name)
-                continue
-            flags |= style.flags
-            align = style.align or align
-            hidden = hidden or style.hidden
-        return ClassStyle(frozenset(flags), align if align in ("center", "right") else "", hidden)
+        return (align if align in ("center", "right") else ""), hidden
 
     # --- paragraphs
 
@@ -193,6 +181,9 @@ class _Converter:
         if para is None:
             return
         items = _tidy_pre(para.items) if para.tag == "pre" else _tidy(para.items)
+        if para.tag == "p" and Para("p", items=items).plain_text() == _IMAGE_PLACEHOLDER:
+            self.images += 1
+            items = [item for item in items if isinstance(item, Anchor)]
         if not _has_text(items):
             # An empty paragraph is dropped, but links may point at its anchors: pass them on.
             self.pending.extend(item.id for item in items if isinstance(item, Anchor))
@@ -207,8 +198,6 @@ class _Converter:
             para.classes.append(rules.CLASS_CENTER)
         elif para.align == "right":
             para.classes.append(rules.CLASS_RIGHT)
-        if para.id and self.kind_of.get(para.id) == rules.NOTE_KIND:
-            para.classes.append(rules.CLASS_NOTE)
         self.containers[-1].append(para)
 
     def _text(self, text: str, fmt: _Format) -> None:
@@ -219,15 +208,10 @@ class _Converter:
         assert self.para is not None
         self.para.items.append(Text(text, fmt.flags, fmt.href))
 
-    def _anchor(self, name: str, tree: str) -> None:
+    def _anchor(self, name: str) -> None:
         if not rules.valid_id(name) or name in self.ids:
             return
         self.ids.add(name)
-        kind = _KIND.match(tree.split(":")[0])
-        if kind:
-            self.kind_of[name] = kind.group()
-            if kind.group() not in rules.KNOWN_KINDS:
-                self.unknown_kinds.add(kind.group())
         if self.para is not None:
             self.para.items.append(Anchor(name))
         else:
@@ -238,7 +222,7 @@ class _Converter:
     def _link(self, node: Node, fmt: _Format) -> None:
         name = node.attrs.get("name") or node.attrs.get("id")
         if name:
-            self._anchor(name, node.attrs.get("data-tree", ""))
+            self._anchor(name)
         if "href" in node.attrs:
             href = rewrite_href(node.attrs["href"], self.nreg)
             if href is None:
@@ -246,10 +230,10 @@ class _Converter:
             fmt = replace(fmt, href=href)
         self._walk(node, fmt)
 
-    def _paragraph(self, node: Node, fmt: _Format, style: ClassStyle) -> None:
+    def _paragraph(self, node: Node, fmt: _Format, align: str) -> None:
         if node.tag in _HEADINGS:
             fmt = replace(fmt, flags=fmt.flags | {"b"})
-        self._open("pre" if node.tag == "pre" else "p", style.align or fmt.align)
+        self._open("pre" if node.tag == "pre" else "p", align or fmt.align)
         self._walk(node, fmt)
         self._close()
 
@@ -287,11 +271,11 @@ class _Converter:
         for row in self._rows(node, fmt):
             cells: list[Cell] = []
             for cell in row:
-                style = self._style(cell)
-                if style.hidden:
+                align, hidden = self._style(cell)
+                if hidden:
                     continue
                 self.containers.append([])
-                self._walk(cell, replace(fmt, flags=fmt.flags | style.flags, align=style.align))
+                self._walk(cell, replace(fmt, align=align))
                 self._close()
                 blocks = self.containers.pop()
                 colspan, rowspan = _span(cell.attrs.get("colspan", "")), _span(cell.attrs.get("rowspan", ""))
@@ -314,12 +298,12 @@ class _Converter:
             tag = child.tag
             if tag in _DROPPED:
                 continue
-            style = self._style(child)
-            if style.hidden:
+            align, hidden = self._style(child)
+            if hidden:
                 continue
             if tag in _NOT_FAITHFUL:
                 self.unknown_tags.add(tag)
-            inner = replace(fmt, flags=fmt.flags | style.flags)
+            inner = fmt
             if tag == "a":
                 self._link(child, inner)
             elif tag == "br":
@@ -330,12 +314,12 @@ class _Converter:
             elif tag in _INLINE_FLAGS:
                 self._walk(child, replace(inner, flags=inner.flags | {_INLINE_FLAGS[tag]}))
             elif tag in _PARA_TAGS:
-                self._paragraph(child, inner, style)
+                self._paragraph(child, inner, align)
             elif tag == "table":
                 self._table(child, inner)
             elif tag in _CONTAINERS:
                 self._close()
-                align = style.align or ("center" if tag == "center" else fmt.align)
+                align = align or ("center" if tag == "center" else fmt.align)
                 self._walk(child, replace(inner, align=align))
                 self._close()
             else:
@@ -351,24 +335,72 @@ class _Converter:
         if self.pending:
             # Anchors after the last text still must exist, or links to them would break.
             blocks.append(Para("p", id=self.pending[0], items=[Anchor(a) for a in self.pending[1:]]))
-        toc: list[TocEntry] = []
-        text_chars = 0
-        for para in paragraphs(blocks):
-            title = unicodedata.normalize("NFC", para.plain_text())
-            text_chars += len(title)
-            for anchor in para.anchors():
-                level = rules.TOC_LEVELS.get(self.kind_of.get(anchor, ""))
-                if level and title:
-                    toc.append(TocEntry(level, anchor, _shorten(title)))
+        headings = _mark_structure(blocks)
+        rank = levels({kind for _, kind in headings})
+        toc = [
+            TocEntry(rank[kind], para.id, _shorten(unicodedata.normalize("NFC", para.plain_text())))
+            for para, kind in headings
+            if para.id
+        ]
         report = Report(
-            text_chars=text_chars,
+            text_chars=sum(len(para.plain_text()) for para in paragraphs(blocks)),
             images=self.images,
             dropped_links=self.dropped_links,
-            unknown_kinds=tuple(sorted(self.unknown_kinds)),
-            unknown_classes=tuple(sorted(self.unknown_classes)),
             unknown_tags=tuple(sorted(self.unknown_tags)),
         )
         return Converted(render(blocks, self.ids), toc, report)
+
+
+def _first_line(para: Para) -> str:
+    parts: list[str] = []
+    for item in para.items:
+        if isinstance(item, Break):
+            break
+        if isinstance(item, Text):
+            parts.append(item.text)
+    return " ".join("".join(parts).split())
+
+
+def _bold_prefix(items: list[Item], length: int) -> list[Item]:
+    """Makes the first `length` characters of the text bold, splitting a text item if needed."""
+    out: list[Item] = []
+    left = length
+    for item in items:
+        if left > 0 and isinstance(item, Text):
+            head, tail = item.text[:left], item.text[left:]
+            left -= len(head)
+            out.append(item._replace(text=head, flags=item.flags | {"b"}))
+            if tail:
+                out.append(item._replace(text=tail))
+        else:
+            out.append(item)
+    return out
+
+
+def _mark_structure(blocks: list[Block]) -> list[tuple[Para, str]]:
+    """Finds headings and notes among the top-level paragraphs and marks them. Tables are content
+    and are never searched for headings."""
+    headings: list[tuple[Para, str]] = []
+    for para in blocks:
+        if not isinstance(para, Para) or para.tag != "p":
+            continue
+        whole = para.plain_text()
+        if whole.startswith("{") and whole.endswith("}"):
+            para.classes.append(rules.CLASS_NOTE)
+            continue
+        found = classify(_first_line(para), whole)
+        if found is None:
+            continue
+        headings.append((para, found.kind))
+        if found.kind == "article":
+            # Only the label is bold: the article text often follows in the same paragraph.
+            label = len(whole[: found.prefix])
+            para.items = _bold_prefix(para.items, label)
+        else:
+            para.items = [item._replace(flags=item.flags | {"b"}) if isinstance(item, Text) else item for item in para.items]
+            if rules.CLASS_CENTER not in para.classes:
+                para.classes.append(rules.CLASS_CENTER)
+    return headings
 
 
 def _shorten(title: str) -> str:
@@ -378,7 +410,7 @@ def _shorten(title: str) -> str:
     return cut[: cut.rfind(" ")].rstrip(" ,;:") + "…" if " " in cut else cut + "…"
 
 
-def convert(page: str, *, nreg: str, styles: Styles | None = None) -> Converted:
+def convert(page: str, *, nreg: str) -> Converted:
     """Converts a portal page (or just its `#article` element) of the document number `nreg`.
 
     Raises ConvertError when the page is too large, too deeply nested, or holds no document text
@@ -392,6 +424,6 @@ def convert(page: str, *, nreg: str, styles: Styles | None = None) -> Converted:
     article = find_by_id(parse(page), "article")
     if article is None:
         raise ConvertError("no_article")
-    converter = _Converter(own, styles or Styles())
+    converter = _Converter(own)
     converter._walk(article, _Format())
     return converter.finish()

@@ -21,16 +21,6 @@ VIEW_SEGMENT = re.compile(r"^(?:ed\d{8}|paran\d+|page\d*|print\d*|conv)$")
 # "#Text" is the top of a page on the portal, not a place in the document.
 PAGE_TOP_FRAGMENT = "Text"
 
-# Numbered style classes of the portal; one that is missing from our stylesheet copy is reported.
-STYLE_CLASS = re.compile(r"^rv[pt]s\d+$")
-
-# data-tree kinds that become entries of the table of contents, with their level.
-TOC_LEVELS = {"rz": 1, "gl": 2, "st": 3}
-# data-tree kind of an editorial note: "{Changed by law N ...}".
-NOTE_KIND = "cm"
-# Every data-tree kind seen so far. Anything else is reported, so that we notice new markup.
-KNOWN_KINDS = frozenset({"nz", "rz", "gl", "st", "ch", "pu", "pp", "cm"})
-
 CLASS_CENTER = "suvii-center"
 CLASS_RIGHT = "suvii-right"
 CLASS_NOTE = "suvii-note"
@@ -163,29 +153,17 @@ STATUS_VALUES = {
     8: ("partly_in_force", "Частково набрав чинності", "Partly in force"),
     9: ("repealed_except", "Втратив чинність, крім окремих положень", "Repealed except some provisions"),
 }
-# Kinds known so far (typ.txt). Other codes are left out and counted in the build report;
-# the full dictionary comes from the portal later.
-KIND_VALUES = {
-    1: ("law", "Закон", "Law"),
-    2: ("resolution", "Постанова", "Resolution"),
-    3: ("decree", "Указ", "Decree"),
-    6: ("order", "Розпорядження", "Order"),
-    9: ("ministry_order", "Наказ", "Ministerial order"),
-    21: ("code_of_ukraine", "Кодекс України", "Code of Ukraine"),
-    124: ("code", "Кодекс", "Code"),
-    216: ("constitution", "Конституція України", "Constitution of Ukraine"),
-}
-
-
 def collection_fields() -> dict:
     """`collection.fields` of the collection (SPEC.md, 7)."""
 
-    def enum(table: dict[int, tuple[str, str, str]]) -> dict:
-        return {key: {"uk": uk, "en": en} for key, uk, en in table.values()}
+    from .kinds import KINDS, KINDS_EN
 
+    # Kinds are keyed by the portal's code ("1" is a law): codes never change, names may.
+    kinds = {str(code): {"uk": name, **({"en": KINDS_EN[code]} if code in KINDS_EN else {})} for code, name in KINDS.items()}
+    statuses = {key: {"uk": uk, "en": en} for key, uk, en in STATUS_VALUES.values()}
     return {
-        "kind": {"type": "enum", "title": {"uk": "Вид", "en": "Type"}, "multi": True, "values": enum(KIND_VALUES)},
-        "status": {"type": "enum", "title": {"uk": "Стан", "en": "Status"}, "values": enum(STATUS_VALUES)},
+        "kind": {"type": "enum", "title": {"uk": "Вид", "en": "Type"}, "multi": True, "values": kinds},
+        "status": {"type": "enum", "title": {"uk": "Стан", "en": "Status"}, "values": statuses},
         "number": {"type": "text", "title": {"uk": "Номер", "en": "Number"}},
         "edition": {"type": "date", "title": {"uk": "Редакція від", "en": "Edition of"}},
     }

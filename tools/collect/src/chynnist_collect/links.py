@@ -8,7 +8,8 @@ from urllib.parse import unquote, urlsplit
 
 from . import rules
 
-_SHOW_PREFIXES = ("/laws/show/", "/rada/show/")
+# "/go/<number>" is how pages for open-data clients link to other documents.
+_SHOW_PREFIXES = ("/laws/show/", "/rada/show/", "/go/")
 
 
 def _nreg_from_path(path: str) -> str | None:
