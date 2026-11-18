@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window behind the screen at start, as the default day theme (Sky) -->
+    <color name="background">#D9E0E7</color>
+    <!-- The icon: Sky's deep blue, a cream sheet and honey rolls -->
+    <color name="icon_cream">#F8F3EB</color>
+    <color name="icon_gold">#D9A441</color>
+    <color name="icon_background_light">#FF4A6FA8</color>
+    <color name="icon_background_dark">#FF2B4570</color>
+</resources>

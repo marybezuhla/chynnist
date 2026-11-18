@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Encrypted connections only, trusting only the phone's built-in certificates (never ones a user or
+     app added). For now Chynnist has no internet permission; the list of allowed hosts comes with it. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

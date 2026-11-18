@@ -22,6 +22,8 @@
 
 [GPL-3.0-or-later](LICENSE). Програму надано «як є», без жодних гарантій.
 
+Код написано за допомогою ШІ (Claude, Anthropic) під керівництвом і з тестуванням авторки.
+
 ---
 
 ## English
@@ -33,3 +35,5 @@
 **Data source:** [Open Data Portal of the Verkhovna Rada of Ukraine](https://data.rada.gov.ua). This app is not an official publication; the official text prevails.
 
 **License:** [GPL-3.0-or-later](LICENSE). Provided "as is", without any warranty.
+
+The code was written with AI (Claude, Anthropic), directed and tested by the author.

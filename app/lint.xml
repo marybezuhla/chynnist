@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dead texts and pictures, and texts written into the code, stop the build -->
+<lint>
+    <issue id="UnusedResources" severity="error" />
+    <issue id="HardcodedText" severity="error" />
+    <issue id="UnusedIds" severity="error" />
+</lint>
