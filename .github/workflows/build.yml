@@ -41,6 +41,25 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
 
+      # The Suvii library in the app is a copy: it must be exactly the library at the commit it names
+      - name: Which Suvii commit the copy comes from
+        id: suvii
+        shell: bash
+        run: |
+          commit=$(tr -d '[:space:]' < .github/suvii-commit.txt)
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "suvii-commit.txt: not a full commit hash"; exit 1; }
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: marybezuhla/suvii
+          ref: ${{ steps.suvii.outputs.commit }}
+          path: suvii-source
+          persist-credentials: false
+
+      - name: Check the copy of the Suvii library
+        run: bash .github/check-suvii.sh suvii-source
+
       - name: Tests
         shell: bash
         run: |

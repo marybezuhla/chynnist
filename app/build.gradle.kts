@@ -90,8 +90,19 @@ dependencies {
     // core-ktx, not core: other libraries ask for it, and this keeps the one already reviewed
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
+    // The laws on the phone: one Suvii file (the format's Kotlin library is in io/github/marybezuhla/suvii,
+    // copied from the suvii repository; CI checks the copy). SQLite comes inside the app, the same on every
+    // phone and with full-text search; zstd unpacks the text; Bouncy Castle checks the ed25519 signature
+    // (Android 12 has none of its own).
+    implementation("androidx.sqlite:sqlite-bundled:2.5.2")
+    implementation("com.github.luben:zstd-jni:1.5.7-4@aar")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
 
     testImplementation("junit:junit:4.13.2")
+    // The list's questions to SQLite, asked of a small made-up file on the computer
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.0")
     // Screen tests only (never in the app): draw each screen with made-up data, so a crash is caught
     // before a release and the look can be reviewed
     testImplementation(composeBom)

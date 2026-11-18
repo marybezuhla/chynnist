@@ -4,7 +4,13 @@
 |---|---|---|
 | Jetpack Compose, Material 3, AndroidX | Google | Apache 2.0 |
 | Kotlin | JetBrains | Apache 2.0 |
-| Значки Material Icons (пошук, закладка, стрілка назад) · Material Icons | Google | Apache 2.0 |
+| kotlinx.coroutines | JetBrains | Apache 2.0 |
+| Значки Material Icons (пошук, закладка, стрілка назад, зміст, закрити) · Material Icons | Google | Apache 2.0 |
+| SQLite (у складі androidx.sqlite:sqlite-bundled) | D. Richard Hipp та ін. | Суспільне надбання · Public domain |
+| zstd | Meta Platforms | BSD |
+| zstd-jni | Luben Karavelov | BSD |
+| Bouncy Castle (bcprov) | Legion of the Bouncy Castle | MIT |
+| Бібліотека «Сувій» для Kotlin (`app/src/main/java/io/github/marybezuhla/suvii`, копія з [suvii](https://github.com/marybezuhla/suvii)) · Suvii library for Kotlin | marybezuhla | GPL-3.0-or-later |
 
 Інші значки й значок застосунку намальовано для «Чинності». · The other icons and the app icon were drawn for Chynnist.
 
