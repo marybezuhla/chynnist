@@ -49,7 +49,7 @@ class BundledDatabase private constructor(private val connection: SQLiteConnecti
     }
 
     override fun execute(sql: String, args: List<Any?>) {
-        statement(sql, args) { s -> while (s.step()) Unit }
+        statement(sql, args) { s -> while (s.step()) { /* rows, if any, are not wanted */ } }
     }
 
     override fun insert(sql: String, args: List<Any?>): Long {

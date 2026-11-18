@@ -140,7 +140,7 @@ class ScreensTest {
         )
     }
 
-    @Test fun documents() = list("12-documents")
+    @Test fun documentsList() = list("12-documents")
     @Config(qualifiers = "en-w400dp-h880dp-xhdpi")
     @Test fun documentsEnglish() = list("13-documents-english", "en")
     @Config(qualifiers = "uk-w320dp-h1400dp-xhdpi", fontScale = 2.0f)
