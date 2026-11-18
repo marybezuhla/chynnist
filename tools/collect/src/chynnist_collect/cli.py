@@ -9,7 +9,7 @@ import logging
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -17,7 +17,7 @@ from suvii import SuviiError, keys
 
 from . import build, catalog, fetch, release, rules, signing
 from .catalog import CatalogError
-from .portal import Portal, RequestFailed, Stop, SystemClock, day_of
+from .portal import Clock, Portal, RequestFailed, Stop, SystemClock, day_of
 from .state import State
 from .transport import Transport
 
@@ -30,10 +30,29 @@ _ENDED = {
     "later": "Решта документів чекає повторної спроби після помилки.",
     "time": "Час запуску вийшов. Наступний запуск продовжить з цього місця.",
     "blocked": "Портал відмовив у доступі. Збирач не робитиме запитів добу.",
-    "budget": "Денний ліміт вичерпано. Продовження завтра.",
+    "budget": "Денний ліміт вичерпано.",
     "hour": "Ліміт цієї години вичерпано. Наступний запуск продовжить.",
     "errors": "Кілька помилок поспіль: немає мережі або портал недоступний. Збирач зачекає кілька годин.",
 }
+
+# What --keep-going says before it waits: {at} is when it goes on by itself.
+_WAITING = {
+    "later": "Решта документів чекає повторної спроби. Збирач перевірить знову о {at}.",
+    "blocked": "Портал відмовив у доступі. Збирач чекає без запитів до {at}.",
+    "budget": "Денний ліміт вичерпано. Збирач продовжить {at} (за Києвом).",
+    "hour": "Ліміт цієї години вичерпано. Продовження о {at}.",
+    "errors": "Кілька помилок поспіль: немає мережі або портал недоступний. Збирач чекає до {at}.",
+}
+
+# A long wait: the terminal may be closed meanwhile (the next start goes on from the same place).
+_MAY_CLOSE = "Термінал можна залишити або закрити: наступний запуск продовжить з цього місця."
+
+# When a waiting question with no fixed answer (a document to retry) is asked again.
+_LATER_CHECK_SECONDS = 3600
+# A little after a new hour or day starts, so the portal's clock and ours surely agree.
+_MARGIN_SECONDS = 60
+# How long one sleep lasts: after the computer itself slept, the wait still ends on time.
+_SLEEP_STEP_SECONDS = 60
 
 
 _NO_CATALOG = {
@@ -89,16 +108,84 @@ def _journal(work: Path) -> Iterator[logging.Logger]:
         handler.close()
 
 
-def _run(state: State, args: argparse.Namespace, work: Path) -> int:
+def _next_hour(moment: float) -> float:
+    here = datetime.fromtimestamp(moment, rules.day_zone())
+    return (here.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)).timestamp() + _MARGIN_SECONDS
+
+
+def _next_day(moment: float) -> float:
+    here = datetime.fromtimestamp(moment, rules.day_zone())
+    midnight = datetime.combine(here.date() + timedelta(days=1), datetime.min.time(), rules.day_zone())
+    return midnight.timestamp() + _MARGIN_SECONDS
+
+
+def resume_at(state: State, ended: str, now: float) -> float | None:
+    """When work that ended for [ended] may go on; None if there is nothing left to do."""
+    if ended == "done":
+        return None
+    if ended == "blocked":
+        return max(now, state.blocked_until() or now)
+    if ended == "errors":
+        return max(now, state.rest_until() or now)
+    if ended == "budget":
+        return _next_day(now)
+    if ended == "hour":
+        return _next_hour(now)
+    if ended == "later":
+        return now + _LATER_CHECK_SECONDS
+    return now
+
+
+def sleep_until(clock: Clock, moment: float) -> None:
+    """Sleeps until [moment] by the wall clock, a minute at a time (a Mac's sleep stops the other clocks)."""
+    while (left := moment - clock.now()) > 0:
+        clock.sleep(min(left, _SLEEP_STEP_SECONDS))
+
+
+def _when(moment: float, now: float) -> str:
+    here = datetime.fromtimestamp(moment, rules.day_zone())
+    same_day = day_of(moment) == day_of(now)
+    return here.strftime("%H:%M") if same_day else here.strftime("%d.%m о %H:%M")
+
+
+def _run(state: State, args: argparse.Namespace, work: Path, clock: Clock | None = None) -> int:
+    clock = clock or SystemClock()
     with _only_one(work) as alone:
         if not alone:
             return 0
         with _journal(work) as journal:
-            clock = SystemClock()
+            if args.keep_going:
+                return _keep_going(state, args, clock, journal)
             ended = fetch.run(state, Portal(state, Transport(), clock), clock, clock.now() + args.minutes * 60)
             journal.info("END %s", ended)
         print(_ENDED[ended])
+        resume = resume_at(state, ended, clock.now())
+        if ended in ("budget", "blocked", "errors") and resume is not None:
+            print(f"Наступні запити — не раніше {_when(resume, clock.now())}. {_MAY_CLOSE}")
     return _status(state)
+
+
+def _keep_going(state: State, args: argparse.Namespace, clock: Clock, journal: logging.Logger) -> int:
+    """Works until the queue is empty: through each limit and pause it waits quietly, saying once when it goes on."""
+    try:
+        while True:
+            ended = fetch.run(state, Portal(state, Transport(), clock), clock, clock.now() + args.minutes * 60)
+            journal.info("END %s", ended)
+            resume = resume_at(state, ended, clock.now())
+            if resume is None:
+                print(_ENDED[ended])
+                return _status(state)
+            if ended == "time":
+                continue
+            print(_WAITING[ended].format(at=_when(resume, clock.now())))
+            if ended != "hour":
+                # (a new hour comes often: the full picture only for the longer waits)
+                print(_MAY_CLOSE)
+                _status(state)
+            sleep_until(clock, resume)
+    except KeyboardInterrupt:
+        print("\nЗупинено. Наступний запуск продовжить з цього місця.")
+        return 0
 
 
 def _catalog(state: State, args: argparse.Namespace, work: Path) -> int:
@@ -249,6 +336,11 @@ def main(argv: list[str] | None = None) -> int:
     add.add_argument("--priority", type=int, default=0, help="менше число завантажується раніше")
     run = commands.add_parser("run", help="завантажувати документи з черги")
     run.add_argument("--minutes", type=float, default=55, help="скільки хвилин працювати (типово: 55)")
+    run.add_argument(
+        "--keep-going",
+        action="store_true",
+        help="працювати, доки не завантажено все: ліміти й перерви перечікувати мовчки (--minutes — довжина одного заходу)",
+    )
     cat = commands.add_parser("catalog", help="оновити список усіх документів порталу й чергу")
     cat.add_argument("--file", type=Path, help="узяти список з готового файлу doc.txt, без завантаження")
     commands.add_parser("keygen", help="створити ключ підпису даних у Keychain (один раз)")
