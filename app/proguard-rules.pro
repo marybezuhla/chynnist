@@ -13,3 +13,8 @@
     public static int println(...);
     public static boolean isLoggable(...);
 }
+
+# Native code calls back into these classes by name: they keep their names and members
+-keep class com.github.luben.zstd.** { *; }
+-keep class androidx.sqlite.driver.bundled.** { *; }
+-keep class androidx.sqlite.SQLiteException { *; }
