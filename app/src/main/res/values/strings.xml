@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chynnist</string>
+    <string name="back">Back</string>
+    <string name="settings">Settings</string>
+    <string name="app_language">Language</string>
+    <string name="lang_auto">Same as the phone</string>
+    <string name="erase">Erase all data…</string>
+    <string name="erase_question">Erase all data?</string>
+    <string name="erase_text">The downloaded laws, the documents you follow and the settings will be erased from this phone. The laws that come with the app stay. Chynnist will close.</string>
+    <string name="erase_confirm">Erase</string>
+    <string name="lang_uk" translatable="false">Українська</string>
+    <string name="lang_en" translatable="false">English</string>
+    <string name="look_mode">Appearance</string>
+    <string name="mode_auto">Auto</string>
+    <string name="mode_light">Light</string>
+    <string name="mode_dark">Dark</string>
+    <string name="day_theme">Day theme</string>
+    <string name="night_theme">Night theme</string>
+    <string name="theme_linen">Linen</string>
+    <string name="theme_visk">Beeswax</string>
+    <string name="theme_nebo">Sky</string>
+    <string name="theme_mak">Poppy</string>
+    <string name="theme_smereka">Spruce</string>
+    <string name="theme_chornozem">Black earth</string>
+    <string name="theme_system">Phone colours</string>
+    <string name="theme_system_dark">Phone colours</string>
+    <string name="theme_glyna">Clay</string>
+    <string name="theme_zhar">Embers</string>
+    <string name="theme_kalyna">Viburnum</string>
+    <string name="theme_zoriana_nich">Starry night</string>
+    <string name="about_title">About the app</string>
+    <string name="about_text">© marybezuhla. Free software under the GNU GPL version 3 or (at your option) any later version (GPL-3.0-or-later), without any warranty. The code was written with AI (Claude, Anthropic), directed and tested by the author.\n\nLibraries: Jetpack Compose, Material 3 and other AndroidX libraries (Google, Apache 2.0); Kotlin (JetBrains, Apache 2.0); Material Icons (Google, Apache 2.0). The full list is in NOTICE.md in the code.\n\nChynnist shows no ads, collects nothing and has no accounts. The settings stay on this phone only and are not copied to the cloud or to a new phone.</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="source_code">Source code</string>
+    <string name="license">Licence</string>
+    <string name="about_letter_1">The idea of making handy Ukrainian apps that ask for as few permissions as possible and work well offline came while I was working at my laptop in near darkness: after yet another Russian drone attack, the power was gone again. That is how Chynnist began: the legislation of Ukraine always at hand, even with no internet.</string>
+    <string name="about_letter_3">Chynnist was made in Ukraine 🇺🇦. Laws are the rules we live by together. Let us know our rights and duties, and read the laws ourselves, at the source. This is who we are, and it is alive. We are alive.</string>
+    <string name="about_letter_2">Chynnist is free software: its code is open, and anyone can check what it does. No ads, no tracking, no accounts. Freedom in software is not a small thing. It is the right to know what happens on your phone, and not to hand your life to anyone.</string>
+    <string name="about_letter_4">Yet since 2014, and since 24 February 2022 at full force, Russia has been waging war against my country. Every day, missiles and drones strike cities, homes, hospitals and power plants. The occupiers kill, abduct Ukrainian children, destroy museums, churches and libraries, and ban our language in the lands they hold. Their aim is for Ukrainians to cease to exist as a people.</string>
+    <string name="about_letter_5">We are fighting for the right to be: to live on our own land, speak our own language, create our own things. The freedom you value in software is, for us today, a matter of life.</string>
+    <string name="about_letter_6">If Chynnist is useful to you, please support Ukraine. I receive none of this money: the links go straight to the organisations\' official sites.</string>
+    <string name="about_letter_7">If you are from Ukraine: thank you for being here. We hold on. We defend, we donate, we look after one another and we choose Ukrainian: together, this brings victory closer.</string>
+    <string name="about_letter_signature">The author of Chynnist 💙💛</string>
+    <string name="about_author_name">Mariana Bezuhla</string>
+    <string name="about_support_note">The links open in your browser, on the organisations\' own sites. The app knows nothing about it and receives nothing.</string>
+    <string name="about_open_site">Open the site</string>
+    <string name="about_org_united24" translatable="false">UNITED24</string>
+    <string name="about_org_united24_url" translatable="false">https://u24.gov.ua/</string>
+    <string name="about_org_redcross">Ukrainian Red Cross Society</string>
+    <string name="about_org_redcross_what">The national Red Cross society: help for people hurt by the war</string>
+    <string name="about_org_redcross_url">https://redcross.org.ua/en/donate</string>
+    <string name="about_org_brave1" translatable="false">Brave1</string>
+    <string name="about_org_brave1_what">Ukraine\'s state defence technology cluster: learn how Ukraine builds them</string>
+    <string name="about_org_brave1_url">https://brave1.gov.ua/en/</string>
+    <string name="about_org_united24_defence">Ukraine\'s official fundraising platform: Defence</string>
+    <string name="about_org_united24_humanitarian">The same platform: medical aid, humanitarian demining, rebuilding</string>
+    <string name="about_org_nbu">National Bank of Ukraine special account</string>
+    <string name="about_org_nbu_what">An account for the needs of the army, opened on 24 February 2022; the National Bank reports on it every month</string>
+    <string name="about_org_nbu_url">https://bank.gov.ua/en/news/all/natsionalniy-bank-vidkriv-spetsrahunok-dlya-zboru-koshtiv-na-potrebi-armiyi</string>
+    <string name="about_support_title">Support Ukraine 💙💛</string>
+    <string name="about_support_defence">Defence</string>
+    <string name="about_support_humanitarian">Humanitarian aid</string>
+    <string name="about_support_any">You can also support any trusted foundation, volunteers or unit you know. Check fundraisers: official details and reports.</string>
+    <string name="about_app">About Chynnist</string>
+    <string name="data_title">Where the laws come from</string>
+    <string name="data_body">The texts and cards of documents come from the Open Data Portal of the Verkhovna Rada of Ukraine. The portal allows free use and sharing of the data, with a reference to the source.</string>
+    <string name="not_official">Chynnist is not an official publication. Official texts are published in the publications named by law.</string>
+    <string name="data_open">Open Data Portal of the Verkhovna Rada</string>
+    <string name="tab_news">News</string>
+    <string name="tab_documents">Documents</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_followed">Followed</string>
+    <string name="empty_title">No laws on the phone yet</string>
+    <string name="empty_news">New and changed documents will show here as soon as the app gets its first data.</string>
+    <string name="empty_documents">The list of documents will be here, with filters by type, status and date.</string>
+    <string name="empty_search">Here you will search all documents without the internet.</string>
+    <string name="empty_followed">The documents you follow will be here; their changes will show first.</string>
+</resources>

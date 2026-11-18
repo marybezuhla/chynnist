@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The same scroll in one colour (Android's themed icons): the check mark is cut out of the sheet. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FF000000" android:fillType="evenOdd"
+        android:pathData="M38,40 L70,40 L70,70 L38,70 Z M44,55.5 L47.5,52 L52.5,57 L62,46.5 L65.5,50 L52.5,64 Z" />
+    <path android:fillColor="#FF000000"
+        android:pathData="M37.5,32 L70.5,32 A3.5,3.5 0,0 1,70.5 39 L37.5,39 A3.5,3.5 0,0 1,37.5 32 Z M37.5,71 L70.5,71 A3.5,3.5 0,0 1,70.5 78 L37.5,78 A3.5,3.5 0,0 1,37.5 71 Z" />
+</vector>

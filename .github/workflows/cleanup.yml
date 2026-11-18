@@ -1,0 +1,53 @@
+name: Clean up old runs
+
+# Run by hand (Actions → Clean up old runs → Run workflow) and type ТАК. Deletes every workflow run
+# (with its logs and files) and every deployment record, except those of the latest release.
+# Releases and tags stay: those are deleted by hand on the Releases page.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Видалити старі запуски? Напишіть ТАК / Delete old runs? Type ТАК"
+        required: true
+        default: "ні"
+
+permissions: {}
+
+jobs:
+  cleanup:
+    if: github.ref == 'refs/heads/main' && inputs.confirm == 'ТАК'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: write
+      deployments: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      SELF: ${{ github.run_id }}
+    steps:
+      - name: Delete old runs and deployments
+        run: |
+          set -euo pipefail
+          # The commit of the latest release: its runs and deployment are kept
+          TAG="$(gh api "repos/$REPO/releases/latest" --jq '.tag_name' 2>/dev/null || true)"
+          KEEP=""
+          if [ -n "$TAG" ]; then
+            KEEP="$(gh api "repos/$REPO/commits/$TAG" --jq '.sha')"
+          fi
+          echo "Keeping runs of ${TAG:-nothing} (${KEEP:-none})"
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100" --jq '.workflow_runs[] | "\(.id) \(.head_sha) \(.status)"' |
+          while read -r id sha status; do
+            [ "$id" = "$SELF" ] && continue
+            [ -n "$KEEP" ] && [ "$sha" = "$KEEP" ] && continue
+            # A run still going or waiting for approval is left alone
+            [ "$status" = completed ] || continue
+            gh api -X DELETE "repos/$REPO/actions/runs/$id" >/dev/null && echo "deleted run $id"
+          done
+          gh api --paginate "repos/$REPO/deployments?per_page=100" --jq '.[] | "\(.id) \(.sha)"' |
+          while read -r id sha; do
+            [ -n "$KEEP" ] && [ "$sha" = "$KEEP" ] && continue
+            # Only an inactive deployment can be deleted
+            gh api -X POST "repos/$REPO/deployments/$id/statuses" -f state=inactive >/dev/null || true
+            gh api -X DELETE "repos/$REPO/deployments/$id" >/dev/null && echo "deleted deployment $id"
+          done

@@ -1,0 +1,204 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  pull_request:
+  workflow_dispatch:
+
+# Nothing gets write access unless a job asks for it below
+permissions:
+  contents: read
+
+# Stale pull request runs are stopped. On main a run is never stopped once started; a newer push
+# may replace one still waiting to start, and the newer version is then the one released
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Tests on a computer, in a job of their own: the test tools (Robolectric) fetch an Android runtime
+  # that the dependency check cannot cover, so nothing they run can touch the APK built in "build".
+  # No secrets, no write access.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The Gradle wrapper jar comes from upstream: check it is an official one before running it
+      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - name: Tests
+        shell: bash
+        run: |
+          set -o pipefail
+          test -f gradle/verification-metadata.xml || { echo "gradle/verification-metadata.xml is missing" | tee test.log; exit 1; }
+          ./gradlew --no-daemon testReleaseUnitTest 2>&1 | tee test.log
+
+      - name: Prepare test log
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p log
+          { echo "tests ${{ github.run_number }} ${{ job.status }}"; grep -E "^e: |error:|FAILED|What went wrong|Dependency verification" -A3 test.log | head -300; echo ----; tail -150 test.log; } > log/test.log || true
+          find app/build/test-results -name "*.xml" -exec cp {} log/ \; 2>/dev/null || true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: test-log
+          path: log/
+          retention-days: 14
+
+      # Pictures of the screens drawn by the tests with made-up data, for review
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: screens
+          path: app/build/screens/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Builds the unsigned APK, only after the tests passed. No secrets, no write access.
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    # The release job checks the APK it signs against this; another job cannot change a job's output
+    outputs:
+      apk_sha256: ${{ steps.sum.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Check version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+        run: bash .github/check-version.sh "$EVENT" "$REF" "$REPO"
+
+      - name: Check the Gradle version and checksum
+        run: |
+          P=gradle/wrapper/gradle-wrapper.properties
+          grep -q 'gradle-8.14.3-bin.zip' "$P" || { echo "::error::$P must name the same Gradle as this workflow (8.14.3)"; exit 1; }
+          WANT="$(curl -fsSL https://services.gradle.org/distributions/gradle-8.14.3-bin.zip.sha256)"
+          grep -q "^distributionSha256Sum=$WANT$" "$P" || { echo "::error::$P checksum differs from Gradle's: $WANT"; exit 1; }
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The Gradle wrapper jar comes from upstream: check it is an official one before running it.
+      # The wrapper then checks Gradle itself against distributionSha256Sum.
+      - uses: gradle/actions/wrapper-validation@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      # A release is built from scratch, without anything cached by earlier runs
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          cache-disabled: ${{ github.event_name == 'push' }}
+
+      - name: Build (unsigned)
+        shell: bash
+        run: |
+          set -o pipefail
+          # Every library is checked against gradle/verification-metadata.xml (refreshed only by deps.yml);
+          # the build fails on any changed library, and without the file.
+          test -f gradle/verification-metadata.xml || { echo "gradle/verification-metadata.xml is missing" | tee build.log; exit 1; }
+          ./gradlew --no-daemon lintRelease assembleRelease 2>&1 | tee build.log
+
+      - name: Check permissions (only what is expected)
+        run: bash .github/check-permissions.sh app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Check the manifest (no backups, no plain HTTP, not debuggable, nothing open to other apps)
+        run: bash .github/check-manifest.sh app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Record the APK checksum
+        id: sum
+        shell: bash
+        run: |
+          # Taken first and checked, so a failed checksum stops here instead of passing on an empty value
+          S="$(sha256sum app/build/outputs/apk/release/app-release-unsigned.apk | cut -d' ' -f1)"
+          [[ "$S" =~ ^[0-9a-f]{64}$ ]]
+          echo "sha256=$S" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare build log
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p log
+          { echo "run ${{ github.run_number }} ${{ job.status }}"; grep -E "^e: |error:|FAILED|What went wrong|Dependency verification" -A3 build.log | head -300; echo ----; tail -150 build.log; cat permissions.txt 2>/dev/null; } > log/build.log || true
+          cp app/build/reports/lint-results-release.txt log/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: build-log
+          path: log/
+          retention-days: 14
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: chynnist-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: ${{ github.event_name == 'pull_request' && 3 || 14 }}
+
+      # To read crash traces from the shrunk (R8) build
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: chynnist-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          retention-days: 14
+
+  # Puts the screen pictures on the ci-screens branch, to look at them without downloading anything.
+  # Runs no project code; only for this repository's own branches (never for pull requests from forks).
+  screens:
+    needs: test
+    if: always() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: ci-screens
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: screens
+          path: screens
+      - name: Push the pictures
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          [ -d screens ] && ls screens/*.png >/dev/null 2>&1 || { echo "No pictures"; exit 0; }
+          mkdir push && cp screens/*.png push/ && cd push
+          git init -q && git checkout -q -b ci-screens && git add .
+          git -c user.name=ci -c user.email=ci@localhost commit -qm "screens for ${SHA:0:7}"
+          # A dropped connection: try again, and never fail a build over pictures
+          for i in 1 2 3; do
+            git push -qf "https://x-access-token:${TOKEN}@github.com/${REPO}" ci-screens && exit 0
+            sleep $((i * 5))
+          done
+          echo "::warning::Could not push the pictures"
