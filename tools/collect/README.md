@@ -25,6 +25,7 @@
 chynnist-collect catalog                   # оновити список усіх документів порталу й чергу
 chynnist-collect add 254к/96-вр 2341-14    # або додати окремі документи до черги
 chynnist-collect run --minutes 55          # завантажувати, доки є час і ліміт
+chynnist-collect run --keep-going          # працювати, доки не завантажено все: ліміти й перерви перечікує сам
 chynnist-collect status                    # що зроблено і що чекає
 chynnist-collect keygen                    # один раз: ключ підпису даних у Keychain
 chynnist-collect build chynnist-1.suvii    # зібрати підписаний сувій із завантаженого
@@ -35,6 +36,8 @@ chynnist-collect release chynnist-1.suvii  # підготувати до вип�
 `release` кладе в теку `work/outbox` усе, що треба завантажити: кожна підтека — це випуск GitHub з такою самою назвою (`data` — індекс, `data-РРРР-ММ` — основа місяця й латки). Раз на місяць новий стан стає основою; між тим виходять латки від кожного попереднього стану місяця, тож телефону завжди досить одного завантаження. Доки `outbox` не очищено після завантаження, новий випуск не готується. Як застосунок читає індекс — у [INDEX.md](INDEX.md).
 
 Ключ підпису даних живе лише в Keychain на Mac видавця: застосунок довіряє тільки сувоям, підписаним ним. `keygen` ніколи не замінює наявний ключ, бо тоді всі встановлені застосунки відкидали б нові дані. Пробна збірка (`--test-key`) підписується тимчасовим ключем, який ніде не зберігається, і не витрачає номер стану.
+
+Для довгого збору на Mac: `caffeinate -i chynnist-collect run --keep-going`. Він сам перечікує ліміти години й дня та перерви, а перед довгим очікуванням один раз пише, коли продовжить. Термінал тоді можна закрити: наступний запуск продовжить з того самого місця. Зупинити — Control-C.
 
 Після збирання поруч лежить `build-report.json`: лише числа (скільки документів, що пропущено, які класи й види порталу ще невідомі), без тексту документів.
 
@@ -70,6 +73,6 @@ The collector runs on the publisher's computer, not on GitHub servers. It follow
 
 All these numbers live in one file: `src/chynnist_collect/rules.py`.
 
-Commands: `chynnist-collect keygen` (once: the data signing key, kept only in the macOS Keychain), `chynnist-collect build <file> [--test-key]` (a signed scroll from what has been downloaded; a trial build uses a throwaway key), `chynnist-collect release <file>` (prepare a signed index and the month's base or patches in `work/outbox`, see [INDEX.md](INDEX.md)), `chynnist-collect catalog` (refresh the list of all documents and the queue), `chynnist-collect add <number>…`, `chynnist-collect run --minutes 55`, `chynnist-collect status`. The queue goes: the Constitution, codes, laws, resolutions and decrees, other documents in force, documents not in force, and daily exchange rate notices last. A document whose edition has changed is queued again. The state is kept in the `work` folder; a run can be interrupted at any moment and the next one continues from the same place. The journal holds only document addresses and answer sizes.
+Commands: `chynnist-collect keygen` (once: the data signing key, kept only in the macOS Keychain), `chynnist-collect build <file> [--test-key]` (a signed scroll from what has been downloaded; a trial build uses a throwaway key), `chynnist-collect release <file>` (prepare a signed index and the month's base or patches in `work/outbox`, see [INDEX.md](INDEX.md)), `chynnist-collect catalog` (refresh the list of all documents and the queue), `chynnist-collect add <number>…`, `chynnist-collect run --minutes 55` (or `run --keep-going`: works until everything is downloaded, waiting quietly through each limit and pause and saying once when it goes on), `chynnist-collect status`. The queue goes: the Constitution, codes, laws, resolutions and decrees, other documents in force, documents not in force, and daily exchange rate notices last. A document whose edition has changed is queued again. The state is kept in the `work` folder; a run can be interrupted at any moment and the next one continues from the same place. The journal holds only document addresses and answer sizes.
 
 The tests never contact the portal: they use a saved page and a small server on the same computer.
