@@ -33,11 +33,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ua.chynnist.R
 import ua.chynnist.ui.theme.CardTitle
@@ -123,7 +125,7 @@ fun Sections(tab: Tab, onTab: (Tab) -> Unit, onSettings: () -> Unit) {
                         selected = t == tab,
                         onClick = { onTab(t) },
                         icon = { Icon(painterResource(t.icon), contentDescription = null) },
-                        label = { Text(stringResource(t.title)) },
+                        label = { TabLabel(stringResource(t.title)) },
                     )
                 }
             }
@@ -132,6 +134,21 @@ fun Sections(tab: Tab, onTab: (Tab) -> Unit, onSettings: () -> Unit) {
         Empty(stringResource(tab.empty), Modifier.padding(padding))
     }
 }
+
+/**
+ * A section's name under its icon: one line, never broken inside a word. Four of them share a phone's
+ * width, so the phone's font size enlarges them only up to [MAX_LABEL_SCALE]; the screen's own text
+ * still grows in full.
+ */
+@Composable
+private fun TabLabel(text: String) {
+    val scale = LocalDensity.current.fontScale
+    val style = MaterialTheme.typography.labelMedium
+    val size = style.fontSize * (minOf(scale, MAX_LABEL_SCALE) / scale)
+    Text(text, style = style.copy(fontSize = size, lineHeight = size * 1.3f), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+}
+
+private const val MAX_LABEL_SCALE = 1.15f
 
 /**
  * What a section shows before the first laws are on the phone. Said plainly, with what comes next,
